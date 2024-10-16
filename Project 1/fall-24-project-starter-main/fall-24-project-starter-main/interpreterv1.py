@@ -12,15 +12,40 @@ class Interpreter(InterpreterBase):
     def run(self, program):
         ast = parse_program(program)
         print("ast: ", ast)
-        self.var_name_to_val = dict()
+        self.variable_val_dict = dict()
         main_func_node = self.get_main_func_node(ast)
-        run_func(main_func_node)
+        self.run_func(main_func_node)
+        # self.lines = program
+        # self.interpret_program()
+
+    # def interpret_program(self): #looks for main function
+    #     main_func = None
+    #     for l in self.lines:
+    #         if l.startswith("func main"):
+    #             main_func = l
+    #             break
+
+    #     if main_func == None:
+    #         super().error(ErrorType.NAME_ERROR, "main() wasn't found")
+    #     else:
+    #         self.interpret_main(main_func)
+
+    # def interpret_main(self, body):
+    #     body = body.replace('func main() {', '').replace('}', '').strip()
+    #     lines = [l.strip() for l in body.split(';') if l.strip()]
+
+    #     for l in lines:
+    #         self.interpret_line(l)
+
+    # def interpret_line(self, line):
+        pass
 
     def get_main_func_node(self, tree: Element):
         if tree.elem_type == "program":
             main = tree.get("functions")[0]
 
             if main.elem_type == "func" and main.get("name") == "main":
+                print("SUCCESSFULLY FOUND MAIN")
                 return main
             super().error(
                 ErrorType.NAME_ERROR,
@@ -30,15 +55,17 @@ class Interpreter(InterpreterBase):
 
     def run_func(self, main_node: Element):
         if main_node: #Not none
-            pass
+            for statement in main_node.get("statements"):
+                self.run_statement(statement)
 
-test_program = [
-    '''func main() {
-        var x;
-        x = 5 + 6;
-        print("The sum is: ", x);
-    }'''
-]
+    def run_statement(self, node):
+        print("ElemType: ", node.elem_type)
 
-new_interpreter = Interpreter(console_output = True)
+test_program = """func main() {
+    var x;
+    x = 5 + 6;
+    print("The sum is: ", x);
+}"""
+
+new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
 new_interpreter.run(test_program)
