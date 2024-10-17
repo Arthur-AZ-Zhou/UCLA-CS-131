@@ -50,11 +50,16 @@ class Interpreter(InterpreterBase):
             expression_result = self.run_expression(node.get("expression"))
             self.name_to_item[variable_name] = expression_result
 
-        elif statement_type == "fcall":
-            pass
-
+        elif statement_type == "fcall": # TO DO WTF IS THIS?!?!?!?!?
+            if variable_name != "print":
+                super().error(ErrorType.NAME_ERROR, f"Function {variable_name} has not been defined",)
+            else:
+                print(node.get("expression").get("val"))
+            
         else: #error if it's not a valid statement
             super().error(ErrorType.NAME_ERROR, "Not a valid statement!",)
+
+        print(self.name_to_item)
 
     def run_expression(self, node): #PROCESS EACH EXPRESSION
         expression_type = node.elem_type
@@ -64,10 +69,34 @@ class Interpreter(InterpreterBase):
             op1 = self.run_expression(node.get("op1"))
             op2 = self.run_expression(node.get("op2"))
 
-            if expression_type == "+":
-                return op1 + op2
-            elif expression_type == "-":
-                return op1 - op2
+            if isinstance(op1, int) and isinstance(op2, int):            
+                if expression_type == "+":
+                    return op1 + op2
+                elif expression_type == "-":
+                    return op1 - op2
+            else:
+                super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation",)
+                return None
+            
+        elif expression_type == "fcall": # TO DO WTF IS THIS?!?!?!?!?
+            fcall_name = node.get("name")
+            if fcall_name == "print":
+                pass
+            elif fcall_name == "inputi":
+                pass
+            
+        elif expression_type == "int":
+            return int(node.get("val"))
+        
+        elif expression_type == "var":
+            variable_name = node.get("name")
+            return self.name_to_item[variable_name]
+        
+        elif expression_type == "string":
+            return node.get("val")
+        
+        else: 
+            super().error(ErrorType.NAME_ERROR, "Unknown expression type",)
 
 test_program = """func main() {
     var x;
@@ -81,17 +110,17 @@ test_program = """func main() {
     x = 5 + 6;
     y = 10;
     z = (x + (1 - 3)) - y;
-
     a_str = "this is a string";
-    magic_num = inputi("enter a magic number: "); 
-
-    a = 4 + inputi("enter a number: ");
-    b = 3 - (3 + (2 + inputi()));
 
     print(10);
     print("hello world!");
     print("The sum is: ", x);
     print("the answer is: ", x + (y - 5), "!");
+
+    magic_num = inputi("enter a magic number: "); 
+
+    a = 4 + inputi("enter a number: ");
+    b = 3 - (3 + (2 + inputi()));    
 }"""
 
 new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
