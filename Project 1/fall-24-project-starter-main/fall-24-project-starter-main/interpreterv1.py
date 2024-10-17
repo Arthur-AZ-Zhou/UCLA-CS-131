@@ -51,10 +51,13 @@ class Interpreter(InterpreterBase):
             self.name_to_item[variable_name] = expression_result
 
         elif statement_type == "fcall": # TO DO WTF IS THIS?!?!?!?!?
-            if variable_name != "print":
+            if variable_name != "print" and variable_name != "inputi":
                 super().error(ErrorType.NAME_ERROR, f"Function {variable_name} has not been defined",)
             else:
-                print(node.get("expression").get("val"))
+                pass
+                # arguments = node.get("args")
+                # print(arguments)
+                # print(self.run_expression(node.get("args")))
             
         else: #error if it's not a valid statement
             super().error(ErrorType.NAME_ERROR, "Not a valid statement!",)
@@ -78,12 +81,8 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.TYPE_ERROR, "Incompatible types for arithmetic operation",)
                 return None
             
-        elif expression_type == "fcall": # TO DO WTF IS THIS?!?!?!?!?
-            fcall_name = node.get("name")
-            if fcall_name == "print":
-                pass
-            elif fcall_name == "inputi":
-                pass
+        elif expression_type == "fcall": # this should only refer to inputi
+            pass
             
         elif expression_type == "int":
             return int(node.get("val"))
@@ -106,6 +105,7 @@ test_program = """func main() {
     var b;
     var a_str;
     var magic_num;
+    var magic_num_no_prompt;
 
     x = 5 + 6;
     y = 10;
@@ -118,6 +118,7 @@ test_program = """func main() {
     print("the answer is: ", x + (y - 5), "!");
 
     magic_num = inputi("enter a magic number: "); 
+    magic_num_no_prompt = inputi();
 
     a = 4 + inputi("enter a number: ");
     b = 3 - (3 + (2 + inputi()));    
