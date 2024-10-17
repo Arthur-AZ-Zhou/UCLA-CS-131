@@ -104,6 +104,10 @@ class Interpreter(InterpreterBase):
         
         elif expression_type == "var":
             variable_name = node.get("name")
+            
+            if variable_name not in self.name_to_item:
+                super().error(ErrorType.NAME_ERROR, f"Variable {variable_name} has not been defined",)
+
             return self.name_to_item[variable_name]
         
         elif expression_type == "string":
@@ -112,33 +116,35 @@ class Interpreter(InterpreterBase):
         else: 
             super().error(ErrorType.NAME_ERROR, "Unknown expression type",)
 
-# test_program = """func main() {
-#     var x;
-#     var y;
-#     var z;
-#     var a;
-#     var b;
-#     var a_str;
-#     var magic_num;
-#     var magic_num_no_prompt;
+test_program = """func main() {
+    var x;
+    var y;
+    var z;
+    var a;
+    var b;
+    var a_str;
+    var magic_num;
+    var magic_num_no_prompt;
 
-#     x = 5 + 6;
-#     y = 10;
-#     z = (x + (1 - 3)) - y;
-#     a_str = "this is a string";
+    x = 5 + 6;
+    y = 10;
+    z = (x + (1 - 3)) - y;
+    a_str = "this is a string";
 
-#     print(10);
-#     print("hello world!");
-#     print("The sum is: ", x);
-#     print("the answer is: ", x + (y - 5), "!");
+    print(10);
+    print("hello world!");
+    print("The sum is: ", x);
+    print("the answer is: ", x + (y - 5), "!");
 
-#     magic_num = inputi("enter a magic number: "); 
-#     magic_num_no_prompt = inputi();
+    magic_num = inputi("enter a magic number: "); 
+    print("magic_num: ", magic_num);
+    magic_num_no_prompt = inputi();
+    print("magic_num_no_prompt + 19: ", magic_num_no_prompt + 19);
 
-#     a = 4 + inputi("enter a number: ");
-#     b = 3 - (3 + (2 + inputi()));    
-#     print(a + b);
-# }"""
+    a = 4 + inputi("enter a number: ");
+    b = 3 - (3 + (2 + inputi()));    
+    print(a + b);
+}"""
 
-# new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
-# new_interpreter.run(test_program)
+new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
+new_interpreter.run(test_program)
