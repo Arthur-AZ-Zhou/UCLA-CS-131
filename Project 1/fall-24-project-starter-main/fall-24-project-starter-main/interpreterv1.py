@@ -50,14 +50,17 @@ class Interpreter(InterpreterBase):
             expression_result = self.run_expression(node.get("expression"))
             self.name_to_item[variable_name] = expression_result
 
-        elif statement_type == "fcall": # TO DO WTF IS THIS?!?!?!?!?
+        elif statement_type == "fcall": #realistically this should only pass print
             if variable_name != "print" and variable_name != "inputi":
                 super().error(ErrorType.NAME_ERROR, f"Function {variable_name} has not been defined",)
-            else:
-                pass
-                # arguments = node.get("args")
-                # print(arguments)
-                # print(self.run_expression(node.get("args")))
+
+            arguments = node.get("args")
+            str_to_print = ""
+            # print(arguments)
+
+            for arg in arguments:
+                str_to_print += str(self.run_expression(arg))
+            print(str_to_print)
             
         else: #error if it's not a valid statement
             super().error(ErrorType.NAME_ERROR, "Not a valid statement!",)
@@ -82,7 +85,19 @@ class Interpreter(InterpreterBase):
                 return None
             
         elif expression_type == "fcall": # this should only refer to inputi
-            pass
+            print("NAME: ", node.get("name"))
+            arguments = node.get("args")
+
+            if 1 < len(arguments):
+                super().error(ErrorType.NAME_ERROR, f"No inputi() function found that takes > 1 parameter",)
+            elif len(arguments) == 0:
+                super().output("")
+                # print("TRIGGER 0 OUTPUT: ", super().get_input())
+                return int(super().get_input())
+            else:
+                super().output(self.run_expression(arguments[0]))
+                # print("TRIGGER 1 OUTPUT: ", super().get_input())
+                return int(super().get_input())
             
         elif expression_type == "int":
             return int(node.get("val"))
