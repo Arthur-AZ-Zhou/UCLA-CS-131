@@ -11,7 +11,7 @@ class Interpreter(InterpreterBase):
 
     def run(self, program):
         ast = parse_program(program)
-        print("ast: ", ast)
+        # print("ast: ", ast)
         main_func_node = self.get_main_func(ast)
         self.run_func_def_node(main_func_node)
 
@@ -20,7 +20,7 @@ class Interpreter(InterpreterBase):
             main = tree.get("functions")[0] #this SHOULD ALWAYS WORK
 
             if main.elem_type == "func" and main.get("name") == "main":
-                print("SUCCESSFULLY FOUND MAIN")
+                # print("SUCCESSFULLY FOUND MAIN")
                 return main
             else:
                 super().error(ErrorType.NAME_ERROR, "No main() function was found",)
@@ -30,11 +30,11 @@ class Interpreter(InterpreterBase):
         if main_node: #Not none
             for statement in main_node.get("statements"):
                 self.run_each_statement(statement)
-            print(self.name_to_item)
+            # print(self.name_to_item)
 
     def run_each_statement(self, node): # ANALYZE STATEMENT AND DO RESPECTIVE ACTION
-        print("\nElemType: ", node.elem_type)
-        print("Statement: ", node)
+        # print("\nElemType: ", node.elem_type)
+        # print("Statement: ", node)
         statement_type = node.elem_type
         variable_name = node.get("name")
 
@@ -60,16 +60,16 @@ class Interpreter(InterpreterBase):
 
             for arg in arguments:
                 str_to_print += str(self.run_expression(arg))
-            print(str_to_print)
+            super().output(str_to_print)
             
         else: #error if it's not a valid statement
             super().error(ErrorType.NAME_ERROR, "Not a valid statement!",)
 
-        print(self.name_to_item)
+        # print(self.name_to_item)
 
     def run_expression(self, node): #PROCESS EACH EXPRESSION
         expression_type = node.elem_type
-        print("EXPRESSION TYPE: ", expression_type, "---------------------------------------")
+        # print("EXPRESSION TYPE: ", expression_type, "---------------------------------------")
 
         if expression_type == "+" or expression_type == "-":
             op1 = self.run_expression(node.get("op1"))
@@ -85,7 +85,7 @@ class Interpreter(InterpreterBase):
                 return None
             
         elif expression_type == "fcall": # this should only refer to inputi
-            print("NAME: ", node.get("name"))
+            # print("NAME: ", node.get("name"))
             arguments = node.get("args")
 
             if 1 < len(arguments):
@@ -137,6 +137,7 @@ test_program = """func main() {
 
     a = 4 + inputi("enter a number: ");
     b = 3 - (3 + (2 + inputi()));    
+    print(a + b);
 }"""
 
 new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
