@@ -91,14 +91,14 @@ class Interpreter(InterpreterBase):
             if 1 < len(arguments):
                 super().error(ErrorType.NAME_ERROR, f"No inputi() function found that takes > 1 parameter",)
             elif len(arguments) == 0:
-                super().output("")
+                # super().output("")
                 # print("TRIGGER 0 OUTPUT: ", super().get_input())
                 return int(super().get_input())
             else:
                 pass
-                # super().output(self.run_expression(arguments[0]))
-                # # print("TRIGGER 1 OUTPUT: ", super().get_input())
-                # return int(super().get_input())
+                super().output(self.run_expression(arguments[0]))
+                # print("TRIGGER 1 OUTPUT: ", super().get_input())
+                return int(super().get_input())
             
         elif expression_type == "int":
             return int(node.get("val"))
@@ -117,36 +117,36 @@ class Interpreter(InterpreterBase):
         else: 
             super().error(ErrorType.NAME_ERROR, "Unknown expression type",)
 
-# test_program = """func main() {
-#     var x;
-#     var y;
-#     var z;
-#     var a;
-#     var b;
-#     var a_str;
-#     var magic_num;
-#     var magic_num_no_prompt;
+test_program = """func main() {
+    var x;
+    var y;
+    var z;
+    var a;
+    var b;
+    var a_str;
+    var magic_num;
+    var magic_num_no_prompt;
 
-#     x = 5 + 6;
-#     y = 10;
-#     z = (x + (1 - 3)) - y;
-#     a_str = "this is a string";
+    x = 5 + 6;
+    y = 10;
+    z = (x + (1 - 3)) - y;
+    a_str = "this is a string";
 
-#     print(10);
-#     print("hello world!");
-#     print("The sum is: ", x);
-#     print("the answer is: ", x + (y - 5), "!");
-#     print("hi", inputi());
+    print(10);
+    print("hello world!");
+    print("The sum is: ", x);
+    print("the answer is: ", x + (y - 5), "!");
+    print("hi", inputi());
 
-#     magic_num = inputi("enter a magic number: "); 
-#     print("magic_num: ", magic_num);
-#     magic_num_no_prompt = inputi();
-#     print("magic_num_no_prompt + 19: ", magic_num_no_prompt + 19);
+    magic_num = inputi("enter a magic number: "); 
+    print("magic_num: ", magic_num);
+    magic_num_no_prompt = inputi();
+    print("magic_num_no_prompt + 19: ", magic_num_no_prompt + 19);
 
-#     a = 4 + inputi("enter a number: ");
-#     b = 3 - (3 + (2 + inputi()));    
-#     print(a + b);
-# }"""
+    a = 4 + inputi("enter a number: ");
+    b = 3 - (3 + (2 + inputi()));    
+    print(a + b);
+}"""
 
-# new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
-# new_interpreter.run(test_program)
+new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
+new_interpreter.run(test_program)
