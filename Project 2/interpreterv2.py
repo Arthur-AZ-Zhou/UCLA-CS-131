@@ -24,19 +24,42 @@ class Interpreter(InterpreterBase):
     def run(self, program):
         ast = parse_program(program)
         self.__set_up_function_table(ast)
-        main_func = self.__get_func_by_name("main")
+        main_func = self.__get_func_by_name("main", 0)
         self.env = EnvironmentManager()
         self.__run_statements(main_func.get("statements"))
 
     def __set_up_function_table(self, ast):
         self.func_name_to_ast = {}
         for func_def in ast.get("functions"):
-            self.func_name_to_ast[func_def.get("name")] = func_def
+            func_name = func_def.get("name")
+            num_args = len(func_def.get("args"))
 
-    def __get_func_by_name(self, name):
-        if name not in self.func_name_to_ast:
-            super().error(ErrorType.NAME_ERROR, f"Function {name} not found")
-        return self.func_name_to_ast[name]
+            if func_name not in self.func_name_to_ast:
+                self.func_name_to_ast[func_name] = {}
+            self.func_name_to_ast[func_name][num_args] = func_def
+            if self.trace_output:
+                print(func_name + " " + str(num_args))
+
+            # if self.trace_output:
+            #     for func_name, versions in self.func_name_to_ast.items():
+            #         print(f"Function: {func_name}")
+            #         for num_args, func_def in versions.items():
+            #             print(f"  Argument count: {num_args}")
+            #             print(f"  Definition: {func_def}")
+
+    def __get_func_by_name(self, name, num_args):
+        # if self.trace_output:
+        #     for func_name, versions in self.func_name_to_ast.items():
+        #         print(f"Function: {func_name}")
+        #         for num_args, func_def in versions.items():
+        #             print(f"  Argument count: {num_args}")
+        #             print(f"  Definition: {func_def}")
+
+        if name in self.func_name_to_ast and num_args in self.func_name_to_ast[name]:
+            if self.trace_output:
+                print("found function " + name + " with " + str(num_args) + " arguments!")
+            return self.func_name_to_ast[name][num_args] 
+        super().error(ErrorType.NAME_ERROR, f"Function {name} not found")
 
     def __run_statements(self, statements):
         # all statements of a function are held in arg3 of the function AST node
@@ -44,22 +67,45 @@ class Interpreter(InterpreterBase):
             if self.trace_output:
                 print(statement)
             if statement.elem_type == InterpreterBase.FCALL_NODE:
-                self.__call_func(statement)
+                result = self.__call_func(statement)
+                return result
             elif statement.elem_type == "=":
                 self.__assign(statement)
             elif statement.elem_type == InterpreterBase.VAR_DEF_NODE:
                 self.__var_def(statement)
-
+            elif statement.elem_type == InterpreterBase.RETURN_NODE:
+                self.__eval_expr(statement.get("expression")) if statement.get("expression") else (Type.NIL)
 
     def __call_func(self, call_node):
         func_name = call_node.get("name")
+        num_args = call_node.get("args")
+
         if func_name == "print":
             return self.__call_print(call_node)
         if func_name == "inputi":
             return self.__call_input(call_node)
 
-        # add code here later to call other functions
-        super().error(ErrorType.NAME_ERROR, f"Function {func_name} not found")
+        func_def = self.__get_func_by_name(func_name, len(num_args))
+        if func_def is None: 
+            super().error(ErrorType.NAME_ERROR, f"Function {func_name} was not found")
+
+        old_env = self.env
+        self.env = EnvironmentManager(old_env)
+
+        for param, arg in zip(func_def.get("args"), num_args):
+            evaluated_arg = self.__eval_expr(arg)
+            if self.trace_output:
+                print(f"ARGSSSSSSSSSSSSSSSSSSSS: {evaluated_arg.type()} {evaluated_arg.value()}")
+            self.env.create(param, Value(evaluated_arg.type(), evaluated_arg.value()))
+
+        if self.trace_output:
+            print("VARIABLES IN TEMP ENVIRONMENT: ")
+            for variable in self.env.environment:
+                print(variable)
+
+        result = self.__run_statements(func_def.get("statements"))
+        self.env = old_env 
+        return result if result else (Type.NIL)
 
     def __call_print(self, call_ast):
         output = ""
@@ -99,16 +145,24 @@ class Interpreter(InterpreterBase):
 
     def __eval_expr(self, expr_ast):
         if expr_ast.elem_type == InterpreterBase.INT_NODE:
+            if self.trace_output:
+                print("IT IS AN INTEGER")
             return Value(Type.INT, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.STRING_NODE:
+            if self.trace_output:
+                print("IT IS A STRING")
             return Value(Type.STRING, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
+            if self.trace_output:
+                print("IT IS A VARIABLE")
             var_name = expr_ast.get("name")
             val = self.env.get(var_name)
             if val is None:
                 super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
             return val
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
+            if self.trace_output:
+                print("IT IS A FCALL")
             return self.__call_func(expr_ast)
         if expr_ast.elem_type in Interpreter.BIN_OPS:
             return self.__eval_op(expr_ast)
@@ -141,7 +195,26 @@ class Interpreter(InterpreterBase):
         )
         # add other operators here later for int, string, bool, etc
 
-test_program = """func main() {
+# func fooPrint(a,b) {
+#     var returnStr;
+#     returnStr = a + b;
+#     return returnStr;
+# }    print(fooPrint("demon","1"));
+
+test_program = """
+
+func foo(a) {
+    print("THIS IS a: ", a);
+}
+
+func foo(a,b) {
+    print(a," ",b);
+}
+
+func main() {
+    foo(5);
+    foo(6,7);
+
     var x;
     var y;
     var z;
@@ -170,7 +243,8 @@ test_program = """func main() {
     a = 4 + inputi("enter a number: ");
     b = 3 - (3 + (2 + inputi()));    
     print(a + b);
-}"""
+}
+"""
 
 new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
 new_interpreter.run(test_program)
