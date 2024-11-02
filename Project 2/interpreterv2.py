@@ -10,7 +10,7 @@ from brewparse import parse_program
 # Main interpreter class
 class Interpreter(InterpreterBase):
     # constants
-    BIN_OPS = {"+", "-"}
+    BIN_OPS = {"+", "-", "*", "/", "==", "!=", "<", "<=", ">", ">=", "||", "&&"}
 
     # methods
     def __init__(self, console_output=True, inp=None, trace_output=False):
@@ -94,7 +94,7 @@ class Interpreter(InterpreterBase):
 
         if condition.value() == True: 
             self.__run_statements(statement.get("true_statements"))
-        elif statement.get("false_statements"):
+        elif statement.get("false_statements"): #includes elses and falses hopefully!?!!?!?
             self.__run_statements(statement.get("false_statements"))
 
     def __handle_for(self, statement):
@@ -119,6 +119,8 @@ class Interpreter(InterpreterBase):
             return self.__call_print(call_node)
         if func_name == "inputi":
             return self.__call_input(call_node)
+        if func_name == "inputs":
+            return self.__call_inputs(call_node)
 
         func_def = self.__get_func_by_name(func_name, len(num_args))
         if func_def is None: 
@@ -153,6 +155,7 @@ class Interpreter(InterpreterBase):
             result = self.__eval_expr(arg)  # result is a Value object
             output = output + get_printable(result)
         super().output(output)
+        return (Type.NIL)
 
     def __call_input(self, call_ast):
         args = call_ast.get("args")
@@ -167,6 +170,17 @@ class Interpreter(InterpreterBase):
         if call_ast.get("name") == "inputi":
             return Value(Type.INT, int(inp))
         # we can support inputs here later
+
+    def __call_inputs(self, call_ast):
+        args = call_ast.get("args")
+        if args is not None and len(args) == 1:
+            prompt_value = self.__eval_expr(args[0])
+            super().output(get_printable(prompt_value))
+        elif args is not None and len(args) > 1:
+            super().error(ErrorType.NAME_ERROR, "inputs() function takes at most one argument")
+
+        inp = super().get_input()
+        return Value(Type.STRING, inp)
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
@@ -188,14 +202,17 @@ class Interpreter(InterpreterBase):
             # if self.trace_output:
             #     print("IT IS AN INTEGER")
             return Value(Type.INT, expr_ast.get("val"))
+        
         if expr_ast.elem_type == InterpreterBase.STRING_NODE:
             # if self.trace_output:
             #     print("IT IS A STRING")
             return Value(Type.STRING, expr_ast.get("val"))
+        
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
             # if self.trace_output:
             #     print("THIS IS THE BOOLEAN VALUE: ", expr_ast.get("val"))
             return Value(Type.BOOL, expr_ast.get("val"))
+        
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             # if self.trace_output:
             #     print("IT IS A VARIABLE")
@@ -204,21 +221,40 @@ class Interpreter(InterpreterBase):
             if val is None:
                 super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
             return val
+        
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
             # if self.trace_output:
             #     print("IT IS A FCALL")
             return self.__call_func(expr_ast)
+        
         if expr_ast.elem_type in Interpreter.BIN_OPS:
+            # if self.trace_output:
+            #     print("BIN OPS TRIGGER")
             return self.__eval_op(expr_ast)
+        
+        if expr_ast.elem_type == InterpreterBase.NEG_NODE:
+            operand = self.__eval_expr(expr_ast.get("op1"))
+            if operand.type() != Type.INT:
+                super().error(ErrorType.TYPE_ERROR, "Unary '-' applied to non-integer")
+            return Value(Type.INT, -operand.v)
+        
+        if expr_ast.elem_type == InterpreterBase.NOT_NODE:
+            operand = self.__eval_expr(expr_ast.get("op1"))
+            if operand.type() != Type.BOOL:
+                super().error(ErrorType.TYPE_ERROR, "Unary '!' applied to non-boolean")
+            return Value(Type.BOOL, not operand.v)
 
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+
         if left_value_obj.type() != right_value_obj.type():
-            super().error(
-                ErrorType.TYPE_ERROR,
-                f"Incompatible types for {arith_ast.elem_type} operation",
-            )
+            if arith_ast.elem_type in {"=="}:
+                return Value(Type.BOOL, False)
+            elif arith_ast.elem_type in {"!="}:
+                return Value(Type.BOOL, True)
+            super().error(ErrorType.TYPE_ERROR, f"Incompatible types for {arith_ast.elem_type} operation")
+
         if arith_ast.elem_type not in self.op_to_lambda[left_value_obj.type()]:
             super().error(
                 ErrorType.TYPE_ERROR,
@@ -231,13 +267,35 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda = {}
         # set up operations on integers
         self.op_to_lambda[Type.INT] = {}
-        self.op_to_lambda[Type.INT]["+"] = lambda x, y: Value(
-            x.type(), x.value() + y.value()
-        )
-        self.op_to_lambda[Type.INT]["-"] = lambda x, y: Value(
-            x.type(), x.value() - y.value()
-        )
-        # add other operators here later for int, string, bool, etc
+        self.op_to_lambda[Type.INT] = {
+            "+": lambda x, y: Value(Type.INT, x.value() + y.value()),
+            "-": lambda x, y: Value(Type.INT, x.value() - y.value()),
+            # "-": lambda x: Value(Type.INT, -x.value()),
+            "*": lambda x, y: Value(Type.INT, x.value() * y.value()),
+            "/": lambda x, y: Value(Type.INT, x.value() // y.value()),
+            "==": lambda x, y: Value(Type.BOOL, x.value() == y.value()),
+            "!=": lambda x, y: Value(Type.BOOL, x.value() != y.value()),
+            "<": lambda x, y: Value(Type.BOOL, x.value() < y.value()),
+            "<=": lambda x, y: Value(Type.BOOL, x.value() <= y.value()),
+            ">": lambda x, y: Value(Type.BOOL, x.value() > y.value()),
+            ">=": lambda x, y: Value(Type.BOOL, x.value() >= y.value()),
+        }
+
+        self.op_to_lambda[Type.BOOL] = {}
+        self.op_to_lambda[Type.BOOL] = {
+            "&&": lambda x, y: Value(Type.BOOL, x.value() and y.value()),
+            "||": lambda x, y: Value(Type.BOOL, x.value() or y.value()),
+            "==": lambda x, y: Value(Type.BOOL, x.value() == y.value()),
+            # "!": lambda x: Value(Type.BOOL, not x.value()),
+            "!=": lambda x, y: Value(Type.BOOL, x.value() != y.value())
+        }
+
+        self.op_to_lambda[Type.STRING] = {}
+        self.op_to_lambda[Type.STRING] = {
+            "+": lambda x, y: Value(Type.STRING, x.value() + y.value()),
+            "==": lambda x, y: Value(Type.BOOL, x.value() == y.value()),
+            "!=": lambda x, y: Value(Type.BOOL, x.value() != y.value()),
+        }
 
 test_program = """
 
@@ -300,6 +358,27 @@ func main() {
     var justinTrudeau;
     justinTrudeau = false;
     print("justinTrudeau (SHOULD BE FALSE): ", justinTrudeau);
+
+    print("HERE COMES THE FUN PART===================================================================");
+    print(true || false);  /* prints true */
+    print(true || false && false); /* prints true */
+    print(5/3);            /* prints 1 */
+    print(-6);             /* prints -6 */
+    print(-(4 + 3));       /* prints -7 */
+    print(true == -(3 + 3)); /* prints false */
+    print(!true);          /* prints false */
+    print(true && !true);  /* prints false */
+    print(true && true);  /* prints true */
+    print("FUN PART ENDS=============================================================================");
+
+    var a;
+    a = 3;
+    print(a > 5);          /* prints false */
+    print("abc"+"def");    /* prints abcdef */
+
+    var testInputS;
+    testInputS = inputs("enter a string! ");
+    print(testInputS);
     
     var x;
     var y;
