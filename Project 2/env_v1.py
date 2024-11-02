@@ -11,14 +11,18 @@ class EnvironmentManager:
     def get(self, symbol):
         if symbol in self.environment:
             return self.environment[symbol]
+        elif self.parent:
+            return self.parent.get(symbol)
         return None
 
     # Sets the data associated with a variable name
     def set(self, symbol, value):
-        if symbol not in self.environment:
-            return False
-        self.environment[symbol] = value
-        return True
+        if symbol in self.environment:
+            self.environment[symbol] = value
+            return True
+        elif self.parent:
+            return self.parent.set(symbol, value)
+        return False
 
     def create(self, symbol, start_val):
         if symbol not in self.environment: 

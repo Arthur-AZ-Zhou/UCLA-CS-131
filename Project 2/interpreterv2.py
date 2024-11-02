@@ -14,6 +14,7 @@ class Interpreter(InterpreterBase):
         super().__init__(console_output, inp)
         self.trace_output = trace_output
         self.__setup_ops()
+        self.env = None #initialize environment
 
     # run a program that's provided in a string
     # usese the provided Parser found in brewparse.py to parse the program
@@ -59,7 +60,10 @@ class Interpreter(InterpreterBase):
         super().error(ErrorType.NAME_ERROR, f"Function {name} not found")
 
     def __run_statements(self, statements):
-        # all statements of a function are held in arg3 of the function AST node
+        old_env = self.env
+        self.env = EnvironmentManager(old_env)
+
+        result = None
         for statement in statements:
             if self.trace_output:
                 print(statement)
@@ -93,7 +97,7 @@ class Interpreter(InterpreterBase):
                 if result is not None:
                     return result;
             
-        # return (Type.NIL)
+        self.env = old_env
             
     def __handle_if(self, statement):
         condition = self.__eval_expr(statement.get("condition"))
@@ -388,6 +392,16 @@ func fooOnMeth(x) {
     }
 }
 
+func fooShadow(c) { 
+    if (c == 10) {
+        var c;     /* variable of the same name as parameter c */
+        c = "hi";
+        print(c);  /* prints "hi"; the inner c shadows the parameter c*/
+    }
+    print(c); /* prints 10 */
+}
+
+
 func main() {
     print(foo(5));
     foo(6,7);
@@ -456,6 +470,18 @@ func main() {
 
     print("the positive value is ", fooOnCrack(-10));
     fooOnMeth(10);
+
+    var c;
+    c = 10;
+    if (c == 10) {
+        var c;     /* variable of the same name as outer variable */
+        c = "hi";
+        print(c);  /* prints "hi"; the inner c shadows the outer c*/
+    }
+    print(c); /* prints 10 */
+
+    print("FOO SHADOW TIME:");
+    fooShadow(10);
 }
 """
 
