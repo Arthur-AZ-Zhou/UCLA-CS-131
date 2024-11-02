@@ -192,6 +192,10 @@ class Interpreter(InterpreterBase):
             # if self.trace_output:
             #     print("IT IS A STRING")
             return Value(Type.STRING, expr_ast.get("val"))
+        if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
+            # if self.trace_output:
+            #     print("THIS IS THE BOOLEAN VALUE: ", expr_ast.get("val"))
+            return Value(Type.BOOL, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             # if self.trace_output:
             #     print("IT IS A VARIABLE")
@@ -239,6 +243,7 @@ test_program = """
 
 func foo(a) {
     print("THIS IS a: ", a);
+    return a + a;
 }
 
 func foo(a,b) {
@@ -259,6 +264,10 @@ func bar() {
     return;  
 }
 
+func testPrintBool() {
+    return true;
+}
+
 func fooPrint(a,b) {
     var returnStr;
     returnStr = a + b;
@@ -276,7 +285,7 @@ func fooOnCrack(x) {
 }
 
 func main() {
-    foo(5);
+    print(foo(5));
     foo(6,7);
     print(fooPrint(4, 5));
 
@@ -286,9 +295,11 @@ func main() {
     print("Got past foo");
     bar();
 
+    print("TESTPRINTBOOLEAN (SHOULD BE TRUE): ", testPrintBool());
+
     var justinTrudeau;
-    justinTrudeau = true;
-    print("justinTrudeau: ", justinTrudeau);
+    justinTrudeau = false;
+    print("justinTrudeau (SHOULD BE FALSE): ", justinTrudeau);
     
     var x;
     var y;
