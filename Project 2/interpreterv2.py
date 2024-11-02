@@ -66,15 +66,50 @@ class Interpreter(InterpreterBase):
         for statement in statements:
             if self.trace_output:
                 print(statement)
+
             if statement.elem_type == InterpreterBase.FCALL_NODE:
-                result = self.__call_func(statement)
-                return result
+                self.__call_func(statement)
             elif statement.elem_type == "=":
                 self.__assign(statement)
             elif statement.elem_type == InterpreterBase.VAR_DEF_NODE:
                 self.__var_def(statement)
             elif statement.elem_type == InterpreterBase.RETURN_NODE:
-                self.__eval_expr(statement.get("expression")) if statement.get("expression") else (Type.NIL)
+                result = self.__eval_expr(statement.get("expression")) if statement.get("expression") else (Type.NIL)
+                return result
+            elif statement.elem_type == InterpreterBase.IF_NODE:
+                if self.trace_output:
+                    print("IF NODE FOUND")
+                self.__handle_if(statement)
+            elif statement.elem_type == InterpreterBase.FOR_NODE:
+                if self.trace_output:
+                    print("FOR NODE FOUND")
+                self.__handle_for(statement)
+            
+        return (Type.NIL)
+            
+    def __handle_if(self, statement):
+        condition = self.__eval_expr(statement.get("condition"))
+        if condition.type() != Type.BOOL:
+            super().error(ErrorType.TYPE_ERROR, "If condition must be a boolean")
+
+        if condition.value() == True: 
+            self.__run_statements(statement.get("true_statements"))
+        elif statement.get("false_statements"):
+            self.__run_statements(statement.get("false_statements"))
+
+    def __handle_for(self, statement):
+        self.__assign(statement.get("initialization"))
+
+        while True:
+            condition = self.__eval_expr(statement.get("condition"))
+            if condition.type() != Type.BOOL:
+                super().error(ErrorType.TYPE_ERROR, "For condition must be a boolean")
+            if not condition.value():
+                break
+
+            self.__run_statements(statement.get("statements"))
+
+            self.__assign(statement.get("update"))
 
     def __call_func(self, call_node):
         func_name = call_node.get("name")
@@ -95,17 +130,22 @@ class Interpreter(InterpreterBase):
         for param, arg in zip(func_def.get("args"), num_args):
             evaluated_arg = self.__eval_expr(arg)
             if self.trace_output:
-                print(f"ARGSSSSSSSSSSSSSSSSSSSS: {evaluated_arg.type()} {evaluated_arg.value()}")
-            self.env.create(param, Value(evaluated_arg.type(), evaluated_arg.value()))
+                print(f"ARGSSSSSSSSSSSSSSSSSSSS: {param.get('name')} {evaluated_arg.type()} {evaluated_arg.value()}")
+            self.env.create(param.get("name"), create_value(evaluated_arg.value()))
 
         if self.trace_output:
             print("VARIABLES IN TEMP ENVIRONMENT: ")
             for variable in self.env.environment:
-                print(variable)
+                print("KEY: ", variable, " | VALUE: ", self.env.environment[variable].v)
 
         result = self.__run_statements(func_def.get("statements"))
+        if self.trace_output:
+            print("RESULT===============================", result)
         self.env = old_env 
-        return result if result else (Type.NIL)
+        if result == None:
+            return (Type.NIL)
+        else:
+            return result
 
     def __call_print(self, call_ast):
         output = ""
@@ -145,24 +185,24 @@ class Interpreter(InterpreterBase):
 
     def __eval_expr(self, expr_ast):
         if expr_ast.elem_type == InterpreterBase.INT_NODE:
-            if self.trace_output:
-                print("IT IS AN INTEGER")
+            # if self.trace_output:
+            #     print("IT IS AN INTEGER")
             return Value(Type.INT, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.STRING_NODE:
-            if self.trace_output:
-                print("IT IS A STRING")
+            # if self.trace_output:
+            #     print("IT IS A STRING")
             return Value(Type.STRING, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
-            if self.trace_output:
-                print("IT IS A VARIABLE")
+            # if self.trace_output:
+            #     print("IT IS A VARIABLE")
             var_name = expr_ast.get("name")
             val = self.env.get(var_name)
             if val is None:
                 super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
             return val
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-            if self.trace_output:
-                print("IT IS A FCALL")
+            # if self.trace_output:
+            #     print("IT IS A FCALL")
             return self.__call_func(expr_ast)
         if expr_ast.elem_type in Interpreter.BIN_OPS:
             return self.__eval_op(expr_ast)
@@ -195,12 +235,6 @@ class Interpreter(InterpreterBase):
         )
         # add other operators here later for int, string, bool, etc
 
-# func fooPrint(a,b) {
-#     var returnStr;
-#     returnStr = a + b;
-#     return returnStr;
-# }    print(fooPrint("demon","1"));
-
 test_program = """
 
 func foo(a) {
@@ -211,38 +245,80 @@ func foo(a,b) {
     print(a," ",b);
 }
 
+func foo() { 
+    return "hello";
+    print("THIS SHOULD NOT PRINTXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+}
+
+func fooNil() {
+    print("hi i am fooNil");
+}
+
+func bar() {
+    print("returning nil rn");
+    return;  
+}
+
+func fooPrint(a,b) {
+    var returnStr;
+    returnStr = a + b;
+    return returnStr;
+}
+
+func fooOnCrack(x) {
+    if (x < 0) {
+        print(x);
+        return -x;
+        print("this will not print");
+    }
+    print("this will not print either");
+    return 5*x;
+}
+
 func main() {
     foo(5);
     foo(6,7);
+    print(fooPrint(4, 5));
 
+    var val;
+    val = nil;
+    print(foo());
+    print("Got past foo");
+    bar();
+
+    var justinTrudeau;
+    justinTrudeau = true;
+    print("justinTrudeau: ", justinTrudeau);
+    
     var x;
     var y;
-    var z;
-    var a;
-    var b;
-    var a_str;
-    var magic_num;
-    var magic_num_no_prompt;
+    x = inputi("enter x: "); 
+    y = inputi("enter y: "); 
 
-    x = 5 + 6;
-    y = 10;
-    z = (x + (1 - 3)) - y;
-    a_str = "this is a string";
+    if (x > 5) {
+        print(x);
+    }
 
-    print(10);
-    print("hello world!");
-    print("The sum is: ", x);
-    print("the answer is: ", x + (y - 5), "!");
-    print("hi", inputi());
+    if (10 < x && x < 30) {
+        print(3*x);
+    }
 
-    magic_num = inputi("enter a magic number: "); 
-    print("magic_num: ", magic_num);
-    magic_num_no_prompt = inputi();
-    print("magic_num_no_prompt + 19: ", magic_num_no_prompt + 19);
+    if (y > 0) {
+        print(y);
+    } else {
+        print(-y);
+    }
 
-    a = 4 + inputi("enter a number: ");
-    b = 3 - (3 + (2 + inputi()));    
-    print(a + b);
+    var val;
+    val = nil;
+    if (foo() == val && bar() == nil) { print("this should print!"); }
+
+    var i;
+    for (i=0; i+3 < 5; i=i+1) {
+        print(i);
+    }
+
+    print("the positive value is ", fooOnCrack(-10));
 }
 """
 
