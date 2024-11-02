@@ -1,6 +1,3 @@
-# Add to spec:
-# - printing out a nil value is undefined
-
 from env_v1 import EnvironmentManager
 from type_valuev1 import Type, Value, create_value, get_printable
 from intbase import InterpreterBase, ErrorType
@@ -68,24 +65,35 @@ class Interpreter(InterpreterBase):
                 print(statement)
 
             if statement.elem_type == InterpreterBase.FCALL_NODE:
-                self.__call_func(statement)
+                result = self.__call_func(statement)
+                # if result is not None:
+                #     return result;
             elif statement.elem_type == "=":
                 self.__assign(statement)
             elif statement.elem_type == InterpreterBase.VAR_DEF_NODE:
                 self.__var_def(statement)
             elif statement.elem_type == InterpreterBase.RETURN_NODE:
+                if self.trace_output:
+                    print("WE HIT A RETURN NODE========================XXXX I LVOE RTUERNS I LOVE HTIS PROJECT")
                 result = self.__eval_expr(statement.get("expression")) if statement.get("expression") else (Type.NIL)
+                # print("TYPE SHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII", Type.NIL)
+                # if (Type.NIL != None):
+                #     print("NILL IS NOT NONE YO LOOK OUT 3D")
                 return result
             elif statement.elem_type == InterpreterBase.IF_NODE:
                 if self.trace_output:
                     print("IF NODE FOUND")
-                self.__handle_if(statement)
+                result = self.__handle_if(statement)
+                if result is not None:
+                    return result;
             elif statement.elem_type == InterpreterBase.FOR_NODE:
                 if self.trace_output:
                     print("FOR NODE FOUND")
-                self.__handle_for(statement)
+                result = self.__handle_for(statement)
+                if result is not None:
+                    return result;
             
-        return (Type.NIL)
+        # return (Type.NIL)
             
     def __handle_if(self, statement):
         condition = self.__eval_expr(statement.get("condition"))
@@ -93,9 +101,15 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.TYPE_ERROR, "If condition must be a boolean")
 
         if condition.value() == True: 
-            self.__run_statements(statement.get("statements"))
+            result = self.__run_statements(statement.get("statements"))
+            if result is not None:
+                return result
         elif statement.get("else_statements"): #includes elses and falses hopefully!?!!?!?
-            self.__run_statements(statement.get("else_statements"))
+            result = self.__run_statements(statement.get("else_statements"))
+            if result is not None:
+                return result
+            
+        # return None #no return encountered
 
     def __handle_for(self, statement):
         self.__assign(statement.get("init"))
@@ -107,10 +121,14 @@ class Interpreter(InterpreterBase):
             if not condition.value():
                 break
 
-            self.__run_statements(statement.get("statements"))
+            result = self.__run_statements(statement.get("statements"))
+            if result is not None:
+                return result
 
             # print("UPDATE: ", self.__assign(statement.get("update")))
             self.__assign(statement.get("update"))
+
+        # return None #no return encountered
 
     def __call_func(self, call_node):
         func_name = call_node.get("name")
@@ -132,8 +150,8 @@ class Interpreter(InterpreterBase):
 
         for param, arg in zip(func_def.get("args"), num_args):
             evaluated_arg = self.__eval_expr(arg)
-            if self.trace_output:
-                print(f"ARGSSSSSSSSSSSSSSSSSSSS: {param.get('name')} {evaluated_arg.type()} {evaluated_arg.value()}")
+            # if self.trace_output:
+            #     print(f"ARGSSSSSSSSSSSSSSSSSSSS: {param.get('name')} {evaluated_arg.type()} {evaluated_arg.value()}")
             self.env.create(param.get("name"), create_value(evaluated_arg.value()))
 
         if self.trace_output:
@@ -359,6 +377,17 @@ func fooOnCrack(x) {
     return 5*x;
 }
 
+func fooOnMeth(x) {
+    var it;
+    for (it = 0; it < x; it = it + 1) {
+        if (it == 5) {
+            print("IT HAS REACHED 5");
+            return;
+        }
+        print("it value: ", it);
+    }
+}
+
 func main() {
     print(foo(5));
     foo(6,7);
@@ -426,6 +455,7 @@ func main() {
     }
 
     print("the positive value is ", fooOnCrack(-10));
+    fooOnMeth(10);
 }
 """
 
