@@ -401,6 +401,10 @@ func fooShadow(c) {
     print(c); /* prints 10 */
 }
 
+func fact(n) {
+    if (n <= 1) { return 1; }
+    return n * fact(n-1);
+}
 
 func main() {
     print(foo(5));
@@ -461,7 +465,7 @@ func main() {
     print("created val");
     val = nil;
     print("assigned val the value of nil");
-    if (foo() == nil && bar() == nil) { print("this should print!"); }
+    if (foo() == val && bar() == nil) { print("this should print!"); }
 
     var i;
     for (i=0; i+3 < 10; i=i+1) {
@@ -482,8 +486,16 @@ func main() {
 
     print("FOO SHADOW TIME:");
     fooShadow(10);
+
+    print("TESTING FOR ONE LAST TIME:");
+    var iter;
+    for (iter = 3; iter > 0; iter = iter - 1) {
+        print(iter);
+    }
+    
+    print(fact(5));
 }
 """
 
-new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
-new_interpreter.run(test_program)
+# new_interpreter = Interpreter(console_output = True, inp = None, trace_output = False)
+# new_interpreter.run(test_program)
