@@ -44,5 +44,5 @@ def get_printable(val):
             return "true"
         return "false"
     if val.type() == Type.NIL:
-        return val.value()
+        return "nil"
     return None

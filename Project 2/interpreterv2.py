@@ -93,12 +93,12 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.TYPE_ERROR, "If condition must be a boolean")
 
         if condition.value() == True: 
-            self.__run_statements(statement.get("true_statements"))
-        elif statement.get("false_statements"): #includes elses and falses hopefully!?!!?!?
-            self.__run_statements(statement.get("false_statements"))
+            self.__run_statements(statement.get("statements"))
+        elif statement.get("else_statements"): #includes elses and falses hopefully!?!!?!?
+            self.__run_statements(statement.get("else_statements"))
 
     def __handle_for(self, statement):
-        self.__assign(statement.get("initialization"))
+        self.__assign(statement.get("init"))
 
         while True:
             condition = self.__eval_expr(statement.get("condition"))
@@ -109,6 +109,7 @@ class Interpreter(InterpreterBase):
 
             self.__run_statements(statement.get("statements"))
 
+            # print("UPDATE: ", self.__assign(statement.get("update")))
             self.__assign(statement.get("update"))
 
     def __call_func(self, call_node):
@@ -213,6 +214,11 @@ class Interpreter(InterpreterBase):
             #     print("THIS IS THE BOOLEAN VALUE: ", expr_ast.get("val"))
             return Value(Type.BOOL, expr_ast.get("val"))
         
+        if expr_ast.elem_type == InterpreterBase.NIL_NODE:
+            if self.trace_output:
+                print("WE FOUND A NIL")
+            return (Type.NIL)
+        
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             # if self.trace_output:
             #     print("IT IS A VARIABLE")
@@ -247,6 +253,22 @@ class Interpreter(InterpreterBase):
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
         right_value_obj = self.__eval_expr(arith_ast.get("op2"))
+
+        if arith_ast.elem_type in {"=="}:
+            if left_value_obj == (Type.NIL) and right_value_obj == (Type.NIL):
+                return Value(Type.BOOL, True)
+            elif left_value_obj == (Type.NIL) or right_value_obj == (Type.NIL):
+                return Value(Type.BOOL, False)
+        elif arith_ast.elem_type in {"!="}:
+            if left_value_obj == (Type.NIL) and right_value_obj == (Type.NIL):
+                return Value(Type.BOOL, False)
+            elif left_value_obj == (Type.NIL) or right_value_obj == (Type.NIL):
+                return Value(Type.BOOL, True)
+
+        # if not isinstance(left_value_obj, Value) or not isinstance(right_value_obj, Value):
+        #     print("LEFT ERROR: ", left_value_obj)
+        #     print("RIGHT ERROR: ", right_value_obj)
+        #     super().error(ErrorType.TYPE_ERROR, "Expected Value type for comparison")
 
         if left_value_obj.type() != right_value_obj.type():
             if arith_ast.elem_type in {"=="}:
@@ -309,12 +331,7 @@ func foo(a,b) {
 }
 
 func foo() { 
-    return "hello";
-    print("THIS SHOULD NOT PRINTXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-}
-
-func fooNil() {
-    print("hi i am fooNil");
+    print("bruh this is foo again hello");
 }
 
 func bar() {
@@ -346,12 +363,6 @@ func main() {
     print(foo(5));
     foo(6,7);
     print(fooPrint(4, 5));
-
-    var val;
-    val = nil;
-    print(foo());
-    print("Got past foo");
-    bar();
 
     print("TESTPRINTBOOLEAN (SHOULD BE TRUE): ", testPrintBool());
 
@@ -399,12 +410,18 @@ func main() {
         print(-y);
     }
 
+    if (y != nil) {
+        print("throw an error party");
+    }
+
     var val;
+    print("created val");
     val = nil;
-    if (foo() == val && bar() == nil) { print("this should print!"); }
+    print("assigned val the value of nil");
+    if (foo() == nil && bar() == nil) { print("this should print!"); }
 
     var i;
-    for (i=0; i+3 < 5; i=i+1) {
+    for (i=0; i+3 < 10; i=i+1) {
         print(i);
     }
 
