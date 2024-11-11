@@ -334,3 +334,13 @@ class Interpreter(InterpreterBase):
             return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
         value_obj = copy.copy(self.__eval_expr(expr_ast))
         return (ExecStatus.RETURN, value_obj)
+
+test_program = """
+
+func main() {
+    print("BEGIN THE DEBUGGING=======================================================================");
+}
+"""
+
+new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
+new_interpreter.run(test_program)
