@@ -177,16 +177,19 @@ class Interpreter(InterpreterBase):
         self.env.set(var_name, val)
 
     def int_to_bool_coercion(self, val):
-        print("val.type(): ", val.type())
-        print("val.value(): ", val.value())
+        if self.trace_output:
+            print("val.type(): ", val.type())
+            print("val.value(): ", val.value())
 
         if val.type() == Type.INT:
             if val.value() == 0:
                 return False;
             else:
                 return True;
-        else:
+        elif val.type() == Type.BOOL:
             return val.value()
+        else: 
+            super().error(ErrorType.TYPE_ERROR, f"Incompatible types")
     
     def __var_def(self, var_ast):
         var_name = var_ast.get("name")
@@ -239,30 +242,34 @@ class Interpreter(InterpreterBase):
 
         if operator in {"==", "!="}:
             # Coerce both operands to BOOL if one of them is BOOL
-            if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
-                left_val = self.int_to_bool_coercion(left_value_obj)
-                right_val = right_value_obj.value()
-            elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
-                left_val = left_value_obj.value()
-                right_val = self.int_to_bool_coercion(right_value_obj)
-            elif left_value_obj.type() == Type.INT and right_value_obj.type() == Type.INT:
-                left_val = left_value_obj.value()
-                right_val = right_value_obj.value()
-            else:
-                left_val = left_value_obj.value()
-                right_val = right_value_obj.value()
+            # if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
+            #     left_val = self.int_to_bool_coercion(left_value_obj)
+            #     right_val = right_value_obj.value()
+            # elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
+            #     left_val = left_value_obj.value()
+            #     right_val = self.int_to_bool_coercion(right_value_obj)
+            # elif left_value_obj.type() == Type.INT and right_value_obj.type() == Type.INT:
+            #     left_val = left_value_obj.value()
+            #     right_val = right_value_obj.value()
+            # else:
+            #     left_val = left_value_obj.value()
+            #     right_val = right_value_obj.value()
+
+            left_val = self.int_to_bool_coercion(left_value_obj)
+            right_val = self.int_to_bool_coercion(right_value_obj)
 
             is_equal = left_val == right_val
             result = is_equal if operator == "==" else not is_equal
             return Value(Type.BOOL, result)
 
+        # if left_value_obj.type() != right_value_obj.type():
+        #     super().error(ErrorType.TYPE_ERROR, f"Incompatible types for {arith_ast.elem_type} operation")
 
-        if not self.__compatible_types(arith_ast.elem_type, left_value_obj, right_value_obj):
-            super().error(
-                ErrorType.TYPE_ERROR,
-                f"Incompatible types for {arith_ast.elem_type} operation",
-            )
-
+        # if not self.__compatible_types(arith_ast.elem_type, left_value_obj, right_value_obj):
+        #     super().error(
+        #         ErrorType.TYPE_ERROR,
+        #         f"Incompatible types for {arith_ast.elem_type} operation",
+        #     )
 
         if arith_ast.elem_type not in self.op_to_lambda[left_value_obj.type()]:
             super().error(
@@ -272,11 +279,11 @@ class Interpreter(InterpreterBase):
         f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
         return f(left_value_obj, right_value_obj)
 
-    def __compatible_types(self, oper, obj1, obj2):
-        # DOCUMENT: allow comparisons ==/!= of anything against anything
-        if oper in ["==", "!="]:
-            return True
-        return obj1.type() == obj2.type()
+    # def __compatible_types(self, oper, obj1, obj2):
+    #     # DOCUMENT: allow comparisons ==/!= of anything against anything
+    #     if oper in ["==", "!="]:
+    #         return True
+    #     return obj1.type() == obj2.type()
 
     def __eval_unary(self, arith_ast, t, f):
         value_obj = self.__eval_expr(arith_ast.get("op1"))
@@ -456,6 +463,9 @@ func main() {
     eyeballs = 5;
     print(eyeballs);
 
+    print("theory: ", theory);
+    print("old: ", old);
+
     print("THIS IS VALID============================");
     old = eyeballs;
     if (old) {
@@ -513,6 +523,9 @@ func main() {
     print((1 || foo()) != true);         /* Expected: false (1 is coerced to true, foo() returns false, (true || false) != true is false) */
     print(bar());
     print(bar() == false); /* should be false */
+    print("END OF TAKBIR'S TEST CASES FOR ASSIGNMENTS=================================================================================================");
+
+
 }
 """
 
