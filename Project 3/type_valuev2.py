@@ -7,7 +7,8 @@ class Type:
     BOOL = "bool"
     STRING = "string"
     NIL = "nil"
-
+    VOID = "void"
+    struct_types = {}  
 
 # Represents a value, which has a type and its value
 class Value:
@@ -46,4 +47,4 @@ def get_printable(val):
         if val.value() is True:
             return "true"
         return "false"
-    return None
+    return Type.NIL
