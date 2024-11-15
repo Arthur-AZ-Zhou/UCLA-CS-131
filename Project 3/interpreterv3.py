@@ -32,18 +32,31 @@ class Interpreter(InterpreterBase):
 
     def __set_up_function_table(self, ast):
         self.func_name_to_ast = {}
+
         for func_def in ast.get("functions"):
             func_name = func_def.get("name")
             num_params = len(func_def.get("args"))
+            params = func_def.get("args")
+
             if func_name not in self.func_name_to_ast:
                 self.func_name_to_ast[func_name] = {}
-            self.func_name_to_ast[func_name][num_params] = func_def
+
+            for arg in params:
+                if not arg.get("var_type") or not self.valid_type_var(arg.get("var_type")):
+                    super().error(ErrorType.TYPE_ERROR, description=f"Invalid type for formal parameter {arg.get('name')} for function {func_name}")
+
+            func_return_type = func_def.get("return_type")
+            
+            if not func_return_type or not self.valid_type_return(func_return_type):
+                super().error(ErrorType.TYPE_ERROR, description=f"Invalid return type {func_return_type} for function {func_name}")
+
+            self.func_name_to_ast[func_name][num_params] = func_def #literally only do this if all else succeeds
 
     def valid_type_var(self, var_type): # MUST INITIALIZE DEFAULT TYPES
         return var_type == InterpreterBase.INT_NODE or var_type == InterpreterBase.BOOL_NODE or var_type == InterpreterBase.STRING_NODE
 
     def valid_type_return(self, return_type):
-        return return_type == Type.VOID or self.valid_type_var(return_type);
+        return self.valid_type_var(return_type) or return_type == Type.VOID;
 
     def defaults(self, default_var):
         if default_var == InterpreterBase.INT_NODE:
@@ -66,6 +79,7 @@ class Interpreter(InterpreterBase):
                 ErrorType.NAME_ERROR,
                 f"Function {name} taking {num_params} params not found",
             )
+        
         return candidate_funcs[num_params]
 
     def __run_statements(self, statements):
@@ -102,27 +116,56 @@ class Interpreter(InterpreterBase):
     def __call_func(self, call_node):
         func_name = call_node.get("name")
         actual_args = call_node.get("args")
+        
+        # if self.trace_output:
+        #     print("CALLNODE: ", call_node)
+        #     print("func_name: ", func_name)
+        #     print("actual_args: ", actual_args)
         return self.__call_func_aux(func_name, actual_args)
 
     def __call_func_aux(self, func_name, actual_args):
+        # if self.trace_output:
+        #     print("func_name in AUX: ", func_name)
         if func_name == "print":
             return self.__call_print(actual_args)
         if func_name == "inputi" or func_name == "inputs":
             return self.__call_input(func_name, actual_args)
 
         func_ast = self.__get_func_by_name(func_name, len(actual_args))
+        # if self.trace_output:
+        #     print("we get here for: ", func_name)
         formal_args = func_ast.get("args")
+        # if self.trace_output:
+        #     print("formal_args: ", formal_args)
         if len(actual_args) != len(formal_args):
             super().error(
                 ErrorType.NAME_ERROR,
                 f"Function {func_ast.get('name')} with {len(actual_args)} args not found",
             )
 
+        # args = self.func_name_to_ast[name][num_params].get("args")
+        for i in range(len(actual_args)):
+            # if self.trace_output:
+            #     print("i: ", i)
+            #     print("actual_args: ", actual_args)
+            #     print("formal_args: ", formal_args)
+            #     print("actual_args[i]'s type HOLY SHIT THIS WAS FUCKING: ", self.__eval_expr(actual_args[i]).type())
+            #     print("formal_args[i].get('var_type'): ", formal_args[i].get('var_type'))
+
+            if (self.__eval_expr(actual_args[i]).type() != formal_args[i].get("var_type") and not ((self.__eval_expr(actual_args[i]).type() == Type.INT and formal_args[i].get('var_type') == Type.BOOL)
+                    # or (arg.type() == Type.NIL and args[i].get("var_type") in self.type_manager.struct_types)
+                )
+            ):
+                super().error(ErrorType.TYPE_ERROR, description=f"Type mismatch on formal parameter {formal_args[i].get('name')}")
+        
+
         # first evaluate all of the actual parameters and associate them with the formal parameter names
         args = {}
         for formal_ast, actual_ast in zip(formal_args, actual_args):
             result = copy.copy(self.__eval_expr(actual_ast))
             arg_name = formal_ast.get("name")
+            # if self.trace_output:
+            #     print("arg_name: ", arg_name)
             args[arg_name] = result
 
         # then create the new activation record 
@@ -138,9 +181,11 @@ class Interpreter(InterpreterBase):
         output = ""
         for arg in args:
             result = self.__eval_expr(arg)  # result is a Value object
+            if result.type() == Type.VOID:
+                super().error(ErrorType.TYPE_ERROR, description="Void cannot be an argument")
             output = output + get_printable(result)
         super().output(output)
-        return Interpreter.NIL_VALUE
+        return self.defaults(Type.VOID)
 
     def __call_input(self, name, args):
         if args is not None and len(args) == 1:
@@ -165,9 +210,9 @@ class Interpreter(InterpreterBase):
                 ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
             )
 
-        if self.trace_output:
-            print("var_name type: ", var_obj.type())
-            print("value_obj type: ", val.type())
+        # if self.trace_output:
+        #     print("var_name type: ", var_obj.type())
+        #     print("value_obj type: ", val.type())
         
         if var_obj.type() != val.type(): #COME BACK TO STRUCTS LATER
             if var_obj.type() == Type.BOOL and val.type() == Type.INT:
@@ -206,20 +251,30 @@ class Interpreter(InterpreterBase):
 
     def __eval_expr(self, expr_ast):
         if expr_ast.elem_type == InterpreterBase.NIL_NODE:
+            # print("NIL NODE TRIGGERE")
             return Value(Type.NIL, Type.NIL)
         if expr_ast.elem_type == InterpreterBase.INT_NODE:
+            # print("INT NODE TRIGGERE")
             return Value(Type.INT, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.STRING_NODE:
+            # print("STRING NODE TRIGGERE")
             return Value(Type.STRING, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
+            # print("BOOL NODE TRIGGERE")
             return Value(Type.BOOL, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
+            # print("VAR NODE TRIGGER")
             var_name = expr_ast.get("name")
+            # if self.trace_output:
+            #     print("var_name: ", var_name)
             val = self.env.get(var_name)
+            # if self.trace_output:
+            #     print("val: ", val)
             if val is None:
                 super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
             return val
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
+            # print("FCALL TRIGGER")
             return self.__call_func(expr_ast)
         if expr_ast.elem_type in Interpreter.BIN_OPS:
             return self.__eval_op(expr_ast)
@@ -444,15 +499,37 @@ class Interpreter(InterpreterBase):
 
 test_program = """
 
-func foo() {
+func foo() : bool {
     return false;
 }
 
-func bar() {
+func bar() : int {
     return 1;
 }
 
-func main() {
+func nilreturner123() : void {
+    return;
+}
+
+func defaultIntReturner() : int {
+    print("defaultIntReturner() running rn");
+    return;
+}
+
+func defaultBoolReturner() : bool {
+    print("defaultBoolReturner() running rn");
+}
+
+func thisShouldFail() : string {
+    return 43;
+}
+
+func testParams(a:bool) : int {
+    print("a: ", a);
+    return a + 5;
+}
+
+func main() : void{
     print("BEGIN THE DEBUGGING=======================================================================");
 
     var eyeballs: int; /* default is 0 */
@@ -525,7 +602,14 @@ func main() {
     print(bar() == false); /* should be false */
     print("END OF TAKBIR'S TEST CASES FOR ASSIGNMENTS=================================================================================================");
 
+    print(nilreturner123());
+    print("defaultIntReturner: ", defaultIntReturner());
+    print("defaultBoolReturner: ", defaultBoolReturner());
+    print("thisShouldFail: ", thisShouldFail());
 
+    var a : int;
+    a = 5;
+    print(testParams(a));
 }
 """
 
