@@ -10,6 +10,7 @@ class EnvironmentManager:
         for env in reversed(cur_func_env):
             if symbol in env:
                 return env[symbol]
+            
 
         return None
 
@@ -21,6 +22,9 @@ class EnvironmentManager:
                 return True
 
         return False
+
+    def is_in_function(self):
+        return len(self.environment) > 0
 
     # create a new symbol in the top-most environment, regardless of whether that symbol exists
     # in a lower environment

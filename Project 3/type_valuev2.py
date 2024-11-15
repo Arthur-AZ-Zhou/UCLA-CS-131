@@ -37,7 +37,6 @@ def create_value(val):
     else:
         raise ValueError("Unknown value type")
 
-
 def get_printable(val):
     if val.type() == Type.INT:
         return str(val.value())

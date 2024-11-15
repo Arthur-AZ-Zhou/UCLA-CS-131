@@ -87,13 +87,36 @@ class Interpreter(InterpreterBase):
         for statement in statements:
             if self.trace_output:
                 print(statement)
+
             status, return_val = self.__run_statement(statement)
             if status == ExecStatus.RETURN:
+                if self.trace_output:
+                    print("STATUS: ", status, "===================================================================")
+                    print("RETURN VAL: ", return_val.type(), "===========================================================")
+
+                if self.env.is_in_function:
+                    expected_return_type = self.env.get("return")
+                    print("EXPECTED_RETURN_TYPE: ", expected_return_type, " ====================================================")
+                    if return_val.value() is None:
+                        return_val = self.defaults(expected_return_type)
+
+                    if return_val.type() != expected_return_type:
+                        if return_val.type() == Type.INT and expected_return_type == Type.BOOL:
+                            return_val = Value(Type.BOOL, self.int_to_bool_coercion(return_val))
+                        elif return_val.type == Type.NIL and expected_return_type in self.type_manager.struct_types:
+                            return_val = Value(expected_return_type, Type.NIL)
+                        else: 
+                            super().error(ErrorType.TYPE_ERROR, description=f"Returned value's type {return_val.type()} is inconsistent with function's return type {expected_return_type}")
+
                 self.env.pop_block()
                 return (status, return_val)
 
+        if self.env.is_in_function:
+            expected_return_type = self.env.get("return")
+            print("EXPECTED_RETURN_TYPE: ", expected_return_type, " ====================================================")
+            return_val = self.defaults(expected_return_type)
         self.env.pop_block()
-        return (ExecStatus.CONTINUE, Interpreter.NIL_VALUE)
+        return (ExecStatus.CONTINUE, return_val)
 
     def __run_statement(self, statement):
         status = ExecStatus.CONTINUE
@@ -171,6 +194,11 @@ class Interpreter(InterpreterBase):
         # then create the new activation record 
         self.env.push_func()
         # and add the formal arguments to the activation record
+        self.env.environment[-1][-1]["return"] = self.__get_func_by_name(func_name, len(actual_args)).get("return_type")
+        if self.trace_output:
+            print("RETURN TYPE: ", self.__get_func_by_name(func_name, len(actual_args)).get("return_type"))
+            print("ENV GET: ", self.env.get("return"))
+        
         for arg_name, value in args.items():
           self.env.create(arg_name, value)
         _, return_val = self.__run_statements(func_ast.get("statements"))
@@ -182,7 +210,7 @@ class Interpreter(InterpreterBase):
         for arg in args:
             result = self.__eval_expr(arg)  # result is a Value object
             if result.type() == Type.VOID:
-                super().error(ErrorType.TYPE_ERROR, description="Void cannot be an argument")
+                result = Value(Type.NIL, None)
             output = output + get_printable(result)
         super().output(output)
         return self.defaults(Type.VOID)
@@ -493,6 +521,8 @@ class Interpreter(InterpreterBase):
     def __do_return(self, return_ast):
         expr_ast = return_ast.get("expression")
         if expr_ast is None:
+            if self.trace_output:
+                print("RETURN IS NONE?!?!?!?!?!!?!?")
             return (ExecStatus.RETURN, Interpreter.NIL_VALUE)
         value_obj = copy.copy(self.__eval_expr(expr_ast))
         return (ExecStatus.RETURN, value_obj)
@@ -508,20 +538,19 @@ func bar() : int {
 }
 
 func nilreturner123() : void {
-    return;
+    print("nilreturner123() running rn");
 }
 
 func defaultIntReturner() : int {
     print("defaultIntReturner() running rn");
-    return;
 }
 
 func defaultBoolReturner() : bool {
     print("defaultBoolReturner() running rn");
 }
 
-func thisShouldFail() : string {
-    return 43;
+func defaultStringReturner() : string {
+    print("defaultStringReturner() running rn");
 }
 
 func testParams(a:bool) : int {
@@ -605,7 +634,7 @@ func main() : void{
     print(nilreturner123());
     print("defaultIntReturner: ", defaultIntReturner());
     print("defaultBoolReturner: ", defaultBoolReturner());
-    print("thisShouldFail: ", thisShouldFail());
+    print("defaultStringReturner: ", defaultStringReturner());
 
     var a : int;
     a = 5;
