@@ -325,21 +325,21 @@ class Interpreter(InterpreterBase):
 
         if operator in {"==", "!="}:
             # Coerce both operands to BOOL if one of them is BOOL
-            # if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
-            #     left_val = self.int_to_bool_coercion(left_value_obj)
-            #     right_val = right_value_obj.value()
-            # elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
-            #     left_val = left_value_obj.value()
-            #     right_val = self.int_to_bool_coercion(right_value_obj)
-            # elif left_value_obj.type() == Type.INT and right_value_obj.type() == Type.INT:
-            #     left_val = left_value_obj.value()
-            #     right_val = right_value_obj.value()
-            # else:
-            #     left_val = left_value_obj.value()
-            #     right_val = right_value_obj.value()
+            if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
+                left_val = self.int_to_bool_coercion(left_value_obj)
+                right_val = right_value_obj.value()
+            elif left_value_obj.type() == Type.BOOL and right_value_obj.type() == Type.INT:
+                left_val = left_value_obj.value()
+                right_val = self.int_to_bool_coercion(right_value_obj)
+            elif left_value_obj.type() == Type.INT and right_value_obj.type() == Type.INT:
+                left_val = left_value_obj.value()
+                right_val = right_value_obj.value()
+            else:
+                left_val = left_value_obj.value()
+                right_val = right_value_obj.value()
 
-            left_val = self.int_to_bool_coercion(left_value_obj)
-            right_val = self.int_to_bool_coercion(right_value_obj)
+            # left_val = self.int_to_bool_coercion(left_value_obj)
+            # right_val = self.int_to_bool_coercion(right_value_obj)
 
             is_equal = left_val == right_val
             result = is_equal if operator == "==" else not is_equal
@@ -641,11 +641,6 @@ func main() : void{
     print(testParams(a));
 }
 """
-
-# var n: node;  /* default is nil */ 
-# print("THIS SHOULD ERROR=======================");
-#     eyeballs = "bruh"; /* NOT SUPPORTED!!! */
-#     print(eyeballs);
 
 new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
 new_interpreter.run(test_program)

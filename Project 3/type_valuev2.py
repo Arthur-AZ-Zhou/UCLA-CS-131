@@ -48,6 +48,6 @@ def get_printable(val):
         return "false"
     if val.type() in Type().struct_types:
         return f"{val.value()}"
-    if val.type() == Type.NIL:
-        return "nil"
+    # if val.type() == Type.NIL:
+    #     return "nil"
     return Type.NIL #undefined behavior
