@@ -25,7 +25,7 @@ class Interpreter(InterpreterBase):
         self.type_manager = Type()
         self.__setup_ops()
 
-    def run(self, program): #REMEMBER TO PARSE STRUCSTSJEOIFJEWOIFJEWIOJEIOFJ
+    def run(self, program):
         ast = parse_program(program)
         self.process_structs(ast)
         self.__set_up_function_table(ast)
@@ -194,15 +194,15 @@ class Interpreter(InterpreterBase):
 
         # args = self.func_name_to_ast[name][num_params].get("args")
         for i in range(len(actual_args)):
-            # if self.trace_output:
-            #     print("i: ", i)
-            #     print("actual_args: ", actual_args)
-            #     print("formal_args: ", formal_args)
-            #     print("actual_args[i]'s type HOLY SHIT THIS WAS FUCKING: ", self.__eval_expr(actual_args[i]).type())
-            #     print("formal_args[i].get('var_type'): ", formal_args[i].get('var_type'))
+            if self.trace_output:
+                print("i: ", i)
+                print("actual_args: ", actual_args)
+                print("formal_args: ", formal_args)
+                print("actual_args[i]'s type HOLY SHIT THIS WAS FUCKING: ", self.__eval_expr(actual_args[i]).type())
+                print("formal_args[i].get('var_type'): ", formal_args[i].get('var_type'))
 
             if (self.__eval_expr(actual_args[i]).type() != formal_args[i].get("var_type") and not ((self.__eval_expr(actual_args[i]).type() == Type.INT and formal_args[i].get('var_type') == Type.BOOL)
-                    # or (arg.type() == Type.NIL and args[i].get("var_type") in self.type_manager.struct_types)
+                    or (self.__eval_expr(actual_args[i]).type() == Type.NIL and formal_args[i].get("var_type") in self.type_manager.struct_types)
                 )
             ):
                 super().error(ErrorType.TYPE_ERROR, description=f"Type mismatch on formal parameter {formal_args[i].get('name')}")
@@ -260,46 +260,44 @@ class Interpreter(InterpreterBase):
         val = self.__eval_expr(assign_ast.get("expression"))
 
         if "." in var_name:
-            # Handle struct field assignment
+            # Use get_variable_including_structs to handle structs
+            var_obj = self.get_variable_including_structs(assign_ast)
+            # Extract the struct and field names
             struct_name, field_name = var_name.split(".", 1)
             struct_obj = self.env.get(struct_name)
+
             if struct_obj is None or struct_obj.type() not in self.type_manager.struct_types:
                 super().error(ErrorType.NAME_ERROR, f"Undefined struct {struct_name}")
-            if field_name not in struct_obj.value():
+            
+            struct_fields = struct_obj.value()
+            if field_name not in struct_fields:
                 super().error(ErrorType.NAME_ERROR, f"Undefined field {field_name} in struct {struct_name}")
+            
             # Ensure type compatibility
-            if struct_obj.value()[field_name].type() != val.type():
+            if struct_fields[field_name].type() != val.type():
                 super().error(
                     ErrorType.TYPE_ERROR,
-                    f"Type mismatch: cannot assign {val.type()} to {struct_obj.value()[field_name].type()}",
+                    f"Type mismatch: cannot assign {val.type()} to {struct_fields[field_name].type()}",
                 )
             # Update the struct's field value
-            struct_obj.value()[field_name] = val
+            struct_fields[field_name] = val
         else:
-            # Handle regular variable assignment
+            # Use get_variable_including_structs for regular variable assignment
+            var_obj = self.get_variable_including_structs(assign_ast)
+
+            if var_obj.type() != val.type():
+                if var_obj.type() == Type.BOOL and val.type() == Type.INT:
+                    val = Value(Type.BOOL, self.int_to_bool_coercion(val))
+                elif var_obj.type() in self.type_manager.struct_types and val.type() == Type.NIL:
+                    val = Value(var_obj.type(), Type.NIL)
+                else:
+                    super().error(
+                        ErrorType.TYPE_ERROR, 
+                        f"Type mismatch: cannot assign {val.type()} to {var_obj.type()}"
+                    )
+
             if not self.env.set(var_name, val):
                 super().error(ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment")
-        
-        # var_name = assign_ast.get("name")
-        # var_obj = self.get_variable_including_structs(assign_ast)
-        # val = self.__eval_expr(assign_ast.get("expression"))
-        # if self.trace_output:
-        #     print("value_object by itself NOT TYPE: ", val)
-        # if not self.env.set(var_name, val):
-        #     super().error(ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment")
-
-        # if self.trace_output:
-        #     print("var_name type: ", var_obj.type())
-        #     print("value_obj type: ", val.type())
-        
-        # if var_obj.type() != val.type():
-        #     if var_obj.type() == Type.BOOL and val.type() == Type.INT:
-        #         val = Value(Type.BOOL, self.int_to_bool_coercion(val))
-        #     elif var_obj.type() in self.type_manager.struct_types and val.type() == Type.NIL:
-        #         val = Value(type=var_obj.type(), value=Type.NIL)
-        #     else:
-        #         super().error(ErrorType.TYPE_ERROR, description=f"Type mismatch b/t {var_obj.type()} and {val.type()}")
-        # self.env.set(var_name, val)
 
     def int_to_bool_coercion(self, val):
         if self.trace_output:
@@ -393,7 +391,7 @@ class Interpreter(InterpreterBase):
         if struct_type not in self.type_manager.struct_types:
             super().error(ErrorType.TYPE_ERROR, description=f"Invalid type {struct_type} for new operation")
         struct = self.type_manager.get_struct(struct_type)
-        return Value(type=struct_type, value=deepcopy(struct))
+        return Value(struct_type, deepcopy(struct))
 
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
@@ -453,6 +451,7 @@ class Interpreter(InterpreterBase):
         return Value(t, f(value_obj.value()))
 
     def __setup_ops(self):
+        global struct_equality
         def struct_equality(x: Value, y: Value):
             if x.type() == y.type() and x.type() in self.type_manager.struct_types:
                 return Value(Type.BOOL, x.value() is y.value())
@@ -463,6 +462,7 @@ class Interpreter(InterpreterBase):
 
             return Value(Type.BOOL, False)
 
+        global struct_inequality
         def struct_inequality(x: Value, y: Value):
             return Value(Type.BOOL, not struct_equality(x, y).value())
 
@@ -575,6 +575,7 @@ class Interpreter(InterpreterBase):
 
     def __do_for(self, for_ast):
         init_ast = for_ast.get("init") 
+        # self.__assign(init_ast)
         cond_ast = for_ast.get("condition")
         eval_cond = self.__eval_expr(cond_ast)
         update_ast = for_ast.get("update") 
@@ -620,23 +621,15 @@ class Interpreter(InterpreterBase):
         return (ExecStatus.RETURN, value_obj)
 
 test_program = """
-struct Person {
-    name: string;
-    age: int;
-    student: bool;
+struct dog {
+  name: string;
+  vaccinated: bool;  
 }
 
 func main() : void {
-    var p: Person;
-    p = new Person;
-    p.name = "Carey";
-    p.age = 21;
-    p.student = false;
-    foo(p);
-}
+  var d: dog;    /* d is an object reference whose value is nil */
 
-func foo(p : Person) : void {
-    print(p.name, " is ", p.age, " years old.");
+  print (d);  /* prints nil, because d was initialized to nil */
 }
 """
 
@@ -757,5 +750,5 @@ func foo(p : Person) : void {
 # }
 # """
 
-new_interpreter = Interpreter(console_output = True, inp = None, trace_output = False)
+new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
 new_interpreter.run(test_program)
