@@ -7,6 +7,7 @@ from brewparse import parse_program
 from env_v2 import EnvironmentManager
 from intbase import InterpreterBase, ErrorType
 from type_valuev2 import Type, Value, create_value, get_printable
+from copy import deepcopy
 
 
 class ExecStatus(Enum):
@@ -21,14 +22,36 @@ class Interpreter(InterpreterBase):
     def __init__(self, console_output=True, inp=None, trace_output=False):
         super().__init__(console_output, inp)
         self.trace_output = trace_output
+        self.type_manager = Type()
         self.__setup_ops()
 
-    def run(self, program):
+    def run(self, program): #REMEMBER TO PARSE STRUCSTSJEOIFJEWOIFJEWIOJEIOFJ
         ast = parse_program(program)
+        self.process_structs(ast)
         self.__set_up_function_table(ast)
         self.env = EnvironmentManager()
         self.must_return = False
         self.__call_func_aux("main", [])
+
+    #Chatgpt generated
+    def process_structs(self, ast):
+        for struct_node in ast.get("structs"):
+            struct_name = struct_node.get("name")
+            struct_fields = {}
+            self.type_manager.add_struct_type(struct_name)
+
+            for field in struct_node.get("fields"):
+                field_name = field.get("name")
+                var_type = field.get("var_type")
+
+                if var_type in [Type.INT, Type.BOOL, Type.STRING]:
+                    struct_fields[field_name] = self.defaults(var_type)
+                elif var_type in self.type_manager.struct_types:
+                    struct_fields[field_name] = Value(type=var_type, value=Type.NIL)
+                else:
+                    super().error(ErrorType.TYPE_ERROR, description=f"Invalid type {var_type} when defining {struct_name}")
+
+            self.type_manager.add_struct(struct_name, struct_fields)
 
     def __set_up_function_table(self, ast):
         self.func_name_to_ast = {}
@@ -53,7 +76,8 @@ class Interpreter(InterpreterBase):
             self.func_name_to_ast[func_name][num_params] = func_def #literally only do this if all else succeeds
 
     def valid_type_var(self, var_type): # MUST INITIALIZE DEFAULT TYPES
-        return var_type == InterpreterBase.INT_NODE or var_type == InterpreterBase.BOOL_NODE or var_type == InterpreterBase.STRING_NODE
+        valid_types = {InterpreterBase.INT_NODE, InterpreterBase.BOOL_NODE, InterpreterBase.STRING_NODE}
+        return var_type in valid_types or var_type in self.type_manager.struct_types.keys()
 
     def valid_type_return(self, return_type):
         return self.valid_type_var(return_type) or return_type == Type.VOID;
@@ -67,8 +91,8 @@ class Interpreter(InterpreterBase):
             return Value(type=Type.BOOL, value=False)
         elif default_var == InterpreterBase.VOID_DEF:
             return Value(type=Type.VOID, value=Type.VOID)
-        elif default_var == _:  # STRUCTS BUT COME BACK TO THIS LATER=======================
-            return Value(type=var_type, value=Type.NIL)
+        else:  # STRUCTS BUT COME BACK TO THIS LATER=======================
+            return Value(type=default_var, value=Type.NIL)
 
     def __get_func_by_name(self, name, num_params):
         if name not in self.func_name_to_ast:
@@ -96,7 +120,8 @@ class Interpreter(InterpreterBase):
 
                 if self.env.is_in_function:
                     expected_return_type = self.env.get("return")
-                    print("EXPECTED_RETURN_TYPE: ", expected_return_type, " ====================================================")
+                    if self.trace_output:
+                        print("EXPECTED_RETURN_TYPE: ", expected_return_type, " ====================================================")
                     if return_val.value() is None:
                         return_val = self.defaults(expected_return_type)
 
@@ -113,7 +138,8 @@ class Interpreter(InterpreterBase):
 
         if self.env.is_in_function:
             expected_return_type = self.env.get("return")
-            print("EXPECTED_RETURN_TYPE: ", expected_return_type, " ====================================================")
+            if self.trace_output:
+                print("EXPECTED_RETURN_TYPE: ", expected_return_type, " ====================================================")
             return_val = self.defaults(expected_return_type)
         self.env.pop_block()
         return (ExecStatus.CONTINUE, return_val)
@@ -140,26 +166,26 @@ class Interpreter(InterpreterBase):
         func_name = call_node.get("name")
         actual_args = call_node.get("args")
         
-        # if self.trace_output:
-        #     print("CALLNODE: ", call_node)
-        #     print("func_name: ", func_name)
-        #     print("actual_args: ", actual_args)
+        if self.trace_output:
+            print("CALLNODE: ", call_node)
+            print("func_name: ", func_name)
+            print("actual_args: ", actual_args)
         return self.__call_func_aux(func_name, actual_args)
 
     def __call_func_aux(self, func_name, actual_args):
-        # if self.trace_output:
-        #     print("func_name in AUX: ", func_name)
+        if self.trace_output:
+            print("func_name in AUX: ", func_name)
         if func_name == "print":
             return self.__call_print(actual_args)
         if func_name == "inputi" or func_name == "inputs":
             return self.__call_input(func_name, actual_args)
 
         func_ast = self.__get_func_by_name(func_name, len(actual_args))
-        # if self.trace_output:
-        #     print("we get here for: ", func_name)
+        if self.trace_output:
+            print("we get here for: ", func_name)
         formal_args = func_ast.get("args")
-        # if self.trace_output:
-        #     print("formal_args: ", formal_args)
+        if self.trace_output:
+            print("formal_args: ", formal_args)
         if len(actual_args) != len(formal_args):
             super().error(
                 ErrorType.NAME_ERROR,
@@ -210,7 +236,7 @@ class Interpreter(InterpreterBase):
         for arg in args:
             result = self.__eval_expr(arg)  # result is a Value object
             if result.type() == Type.VOID:
-                result = Value(Type.NIL, None)
+                super().error(ErrorType.TYPE_ERROR, description="Void not allowed as an argument")
             output = output + get_printable(result)
         super().output(output)
         return self.defaults(Type.VOID)
@@ -231,23 +257,49 @@ class Interpreter(InterpreterBase):
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
-        var_obj = self.env.get(var_name)
         val = self.__eval_expr(assign_ast.get("expression"))
-        if not self.env.set(var_name, val):
-            super().error(
-                ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
-            )
+
+        if "." in var_name:
+            # Handle struct field assignment
+            struct_name, field_name = var_name.split(".", 1)
+            struct_obj = self.env.get(struct_name)
+            if struct_obj is None or struct_obj.type() not in self.type_manager.struct_types:
+                super().error(ErrorType.NAME_ERROR, f"Undefined struct {struct_name}")
+            if field_name not in struct_obj.value():
+                super().error(ErrorType.NAME_ERROR, f"Undefined field {field_name} in struct {struct_name}")
+            # Ensure type compatibility
+            if struct_obj.value()[field_name].type() != val.type():
+                super().error(
+                    ErrorType.TYPE_ERROR,
+                    f"Type mismatch: cannot assign {val.type()} to {struct_obj.value()[field_name].type()}",
+                )
+            # Update the struct's field value
+            struct_obj.value()[field_name] = val
+        else:
+            # Handle regular variable assignment
+            if not self.env.set(var_name, val):
+                super().error(ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment")
+        
+        # var_name = assign_ast.get("name")
+        # var_obj = self.get_variable_including_structs(assign_ast)
+        # val = self.__eval_expr(assign_ast.get("expression"))
+        # if self.trace_output:
+        #     print("value_object by itself NOT TYPE: ", val)
+        # if not self.env.set(var_name, val):
+        #     super().error(ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment")
 
         # if self.trace_output:
         #     print("var_name type: ", var_obj.type())
         #     print("value_obj type: ", val.type())
         
-        if var_obj.type() != val.type(): #COME BACK TO STRUCTS LATER
-            if var_obj.type() == Type.BOOL and val.type() == Type.INT:
-                val = Value(Type.BOOL, self.int_to_bool_coercion(val))
-            else:
-                super().error(ErrorType.TYPE_ERROR, description=f"Type mismatch b/t {var_obj.type()} and {val.type()}")
-        self.env.set(var_name, val)
+        # if var_obj.type() != val.type():
+        #     if var_obj.type() == Type.BOOL and val.type() == Type.INT:
+        #         val = Value(Type.BOOL, self.int_to_bool_coercion(val))
+        #     elif var_obj.type() in self.type_manager.struct_types and val.type() == Type.NIL:
+        #         val = Value(type=var_obj.type(), value=Type.NIL)
+        #     else:
+        #         super().error(ErrorType.TYPE_ERROR, description=f"Type mismatch b/t {var_obj.type()} and {val.type()}")
+        # self.env.set(var_name, val)
 
     def int_to_bool_coercion(self, val):
         if self.trace_output:
@@ -291,16 +343,18 @@ class Interpreter(InterpreterBase):
             # print("BOOL NODE TRIGGERE")
             return Value(Type.BOOL, expr_ast.get("val"))
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
-            # print("VAR NODE TRIGGER")
-            var_name = expr_ast.get("name")
-            # if self.trace_output:
-            #     print("var_name: ", var_name)
-            val = self.env.get(var_name)
-            # if self.trace_output:
-            #     print("val: ", val)
-            if val is None:
-                super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
-            return val
+            return self.get_variable_including_structs(expr_ast)
+
+            # # print("VAR NODE TRIGGER")
+            # var_name = expr_ast.get("name")
+            # # if self.trace_output:
+            # #     print("var_name: ", var_name)
+            # val = self.env.get(var_name)
+            # # if self.trace_output:
+            # #     print("val: ", val)
+            # if val is None:
+            #     super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+            # return val
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
             # print("FCALL TRIGGER")
             return self.__call_func(expr_ast)
@@ -310,6 +364,36 @@ class Interpreter(InterpreterBase):
             return self.__eval_unary(expr_ast, Type.INT, lambda x: -1 * x)
         if expr_ast.elem_type == Interpreter.NOT_NODE:
             return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
+        if expr_ast.elem_type == InterpreterBase.NEW_NODE:
+            return self.create_new_struct(expr_ast)
+
+    def get_variable_including_structs(self, var_ast):
+        full_var_name = var_ast.get("name")
+        var_name_and_keys = full_var_name.split(".")
+        var_name = var_name_and_keys[0]
+        val = self.env.get(var_name)
+
+        if val == None:
+            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+        
+        for key in var_name_and_keys[1:]:
+            if val.type() not in self.type_manager.struct_types:
+                super().error(ErrorType.TYPE_ERROR, description=f"Dot used with non-struct in {full_var_name}")
+            struct = val.value()
+
+            if not isinstance(struct, dict):
+                super().error(ErrorType.FAULT_ERROR, description=f"Error dereferencing {struct} value in {full_var_name}")
+            if key not in struct:
+                super().error(ErrorType.NAME_ERROR, description=f"Unknown member {key} in {full_var_name}")
+            val = struct[key]
+        return val
+
+    def create_new_struct(self, new_ast):
+        struct_type = new_ast.get("var_type")
+        if struct_type not in self.type_manager.struct_types:
+            super().error(ErrorType.TYPE_ERROR, description=f"Invalid type {struct_type} for new operation")
+        struct = self.type_manager.get_struct(struct_type)
+        return Value(type=struct_type, value=deepcopy(struct))
 
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
@@ -324,7 +408,13 @@ class Interpreter(InterpreterBase):
             return Value(Type.BOOL, result)
 
         if operator in {"==", "!="}:
-            # Coerce both operands to BOOL if one of them is BOOL
+            if (left_value_obj.type() in self.type_manager.struct_types or right_value_obj.type() in self.type_manager.struct_types):
+                if operator == "==":
+                    return struct_equality(left_value_obj, right_value_obj)
+                else:
+                    return struct_inequality(left_value_obj, right_value_obj)
+
+            # # Coerce both operands to BOOL if one of them is BOOL THIS LINE MIGHT BE PROBLEMATIC==0-34998590183920148321-43209-49320931254932-04129-4132-
             if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
                 left_val = self.int_to_bool_coercion(left_value_obj)
                 right_val = right_value_obj.value()
@@ -345,15 +435,6 @@ class Interpreter(InterpreterBase):
             result = is_equal if operator == "==" else not is_equal
             return Value(Type.BOOL, result)
 
-        # if left_value_obj.type() != right_value_obj.type():
-        #     super().error(ErrorType.TYPE_ERROR, f"Incompatible types for {arith_ast.elem_type} operation")
-
-        # if not self.__compatible_types(arith_ast.elem_type, left_value_obj, right_value_obj):
-        #     super().error(
-        #         ErrorType.TYPE_ERROR,
-        #         f"Incompatible types for {arith_ast.elem_type} operation",
-        #     )
-
         if arith_ast.elem_type not in self.op_to_lambda[left_value_obj.type()]:
             super().error(
                 ErrorType.TYPE_ERROR,
@@ -361,12 +442,6 @@ class Interpreter(InterpreterBase):
             )
         f = self.op_to_lambda[left_value_obj.type()][arith_ast.elem_type]
         return f(left_value_obj, right_value_obj)
-
-    # def __compatible_types(self, oper, obj1, obj2):
-    #     # DOCUMENT: allow comparisons ==/!= of anything against anything
-    #     if oper in ["==", "!="]:
-    #         return True
-    #     return obj1.type() == obj2.type()
 
     def __eval_unary(self, arith_ast, t, f):
         value_obj = self.__eval_expr(arith_ast.get("op1"))
@@ -378,6 +453,19 @@ class Interpreter(InterpreterBase):
         return Value(t, f(value_obj.value()))
 
     def __setup_ops(self):
+        def struct_equality(x: Value, y: Value):
+            if x.type() == y.type() and x.type() in self.type_manager.struct_types:
+                return Value(Type.BOOL, x.value() is y.value())
+            if x.type() == Type.NIL and y.type() in self.type_manager.struct_types:
+                return Value(Type.BOOL, y.value() == Type.NIL)
+            if y.type() == Type.NIL and x.type() in self.type_manager.struct_types:
+                return Value(Type.BOOL, x.value() == Type.NIL)
+
+            return Value(Type.BOOL, False)
+
+        def struct_inequality(x: Value, y: Value):
+            return Value(Type.BOOL, not struct_equality(x, y).value())
+
         self.op_to_lambda = {}
         # set up operations on integers
         self.op_to_lambda[Type.INT] = {}
@@ -457,6 +545,10 @@ class Interpreter(InterpreterBase):
             Type.BOOL, x.type() != y.type() or x.value() != y.value()
         )
 
+        for struct_type in self.type_manager.struct_types:
+            self.op_to_lambda[struct_type]["=="] = struct_equality
+            self.op_to_lambda[struct_type]["!="] = struct_inequality
+
     def __do_if(self, if_ast):
         cond_ast = if_ast.get("condition")
         result = self.__eval_expr(cond_ast)
@@ -528,119 +620,142 @@ class Interpreter(InterpreterBase):
         return (ExecStatus.RETURN, value_obj)
 
 test_program = """
-
-func foo() : bool {
-    return false;
+struct Person {
+    name: string;
+    age: int;
+    student: bool;
 }
 
-func bar() : int {
-    return 1;
+func main() : void {
+    var p: Person;
+    p = new Person;
+    p.name = "Carey";
+    p.age = 21;
+    p.student = false;
+    foo(p);
 }
 
-func nilreturner123() : void {
-    print("nilreturner123() running rn");
-}
-
-func defaultIntReturner() : int {
-    print("defaultIntReturner() running rn");
-}
-
-func defaultBoolReturner() : bool {
-    print("defaultBoolReturner() running rn");
-}
-
-func defaultStringReturner() : string {
-    print("defaultStringReturner() running rn");
-}
-
-func testParams(a:bool) : int {
-    print("a: ", a);
-    return a + 5;
-}
-
-func main() : void{
-    print("BEGIN THE DEBUGGING=======================================================================");
-
-    var eyeballs: int; /* default is 0 */
-    var theory: string; /* default is "" */
-    var old: bool; /* default is false */
-    
-    print(eyeballs);
-    eyeballs = 5;
-    print(eyeballs);
-
-    print("theory: ", theory);
-    print("old: ", old);
-
-    print("THIS IS VALID============================");
-    old = eyeballs;
-    if (old) {
-        print("old is true!");
-    } else {
-        print("old is false!");
-    }
-
-    var i : int;
-    for (i = 5; i; i = i - 1) {
-        print("i: ", i);
-    }
-
-    var tester : int;
-    tester = 1; 
-    if (tester == true) {
-        print("yup tester is true!");
-    } else {
-        print("tester is false!");
-    }
-
-    print("TAKBIR'S TEST CASES FOR ASSIGNMENTS=================================================================================================");
-
-    /* Equality and Inequality tests with coercion */
-    print(0 == false);        /* Expected: true (0 is coerced to false) */
-    print(1 == true);         /* Expected: true (1 is coerced to true) */
-    print(42 == true);        /* Expected: true (42 is non-zero, coerced to true) */
-    print(-1 == true);        /* Expected: true (-1 is non-zero, coerced to true) */
-    print(0 != true);         /* Expected: true (0 is coerced to false, not equal to true) */
-    print(1 != false);        /* Expected: true (1 is coerced to true, not equal to false) */
-    print(0 != false);        /* Expected: false (0 is coerced to false) */
-    print("==========");
-    
-    /* Logical AND (&&) and OR (||) with coercion */
-    print(0 && false);        /* Expected: false (0 is coerced to false, false && false is false) */
-    print(1 && true);         /* Expected: true (1 is coerced to true, true && true is true) */
-    print(0 || true);         /* Expected: true (0 is coerced to false, false || true is true) */
-    print(0 || false);        /* Expected: false (0 is coerced to false, false || false is false) */
-    print(42 && false);       /* Expected: false (42 is coerced to true, true && false is false) */
-    print(42 || false);       /* Expected: true (42 is coerced to true, true || false is true) */
-    print("==========");
-    
-    /* Nested expressions with coerced booleans */
-    print((0 || 1) && true);  /* Expected: true ((0 || 1) coerces to true, true && true is true) */
-    print((0 && 1) || true);  /* Expected: true ((0 && 1) coerces to false, false || true is true) */
-    print(0 || (0 && true));  /* Expected: false (0 || (false) is false) */
-    print(1 && (0 || true));  /* Expected: true (1 coerces to true, true && true is true) */
-    print("==========");
-    
-    /* Comparison with multiple types */
-    print((0 == false) && (1 == true));  /* Expected: true (both coerced comparisons are true) */
-    print((0 != true) || (1 != false));  /* Expected: true (both coerced comparisons are true) */
-    print((0 && foo()) == false);        /* Expected: true (0 is coerced to false, foo() returns false, (false && false) == false is true) */
-    print((1 && foo()) != true);         /* Expected: true (1 is coerced to true, foo() returns false, (true && false) != true is true) */
-    print((1 || foo()) != true);         /* Expected: false (1 is coerced to true, foo() returns false, (true || false) != true is false) */
-    print(bar());
-    print(bar() == false); /* should be false */
-    print("END OF TAKBIR'S TEST CASES FOR ASSIGNMENTS=================================================================================================");
-
-    print(nilreturner123());
-    print("defaultIntReturner: ", defaultIntReturner());
-    print("defaultBoolReturner: ", defaultBoolReturner());
-    print("defaultStringReturner: ", defaultStringReturner());
-
-    var a : int;
-    a = 5;
-    print(testParams(a));
+func foo(p : Person) : void {
+    print(p.name, " is ", p.age, " years old.");
 }
 """
 
-new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
+# test_program = """
+
+# func foo() : bool {
+#     return false;
+# }
+
+# func bar() : int {
+#     return 1;
+# }
+
+# func nilreturner123() : void {
+#     print("nilreturner123() running rn");
+# }
+
+# func defaultIntReturner() : int {
+#     print("defaultIntReturner() running rn");
+# }
+
+# func defaultBoolReturner() : bool {
+#     print("defaultBoolReturner() running rn");
+# }
+
+# func defaultStringReturner() : string {
+#     print("defaultStringReturner() running rn");
+# }
+
+# func testParams(a:bool) : int {
+#     print("a: ", a);
+#     return a + 5;
+# }
+
+# func main() : void{
+#     print("BEGIN THE DEBUGGING=======================================================================");
+#     if ("bruh" == "bruh") {
+#         print("bruh true");
+#     }
+
+#     var eyeballs: int; /* default is 0 */
+#     var theory: string; /* default is "" */
+#     var old: bool; /* default is false */
+    
+#     print(eyeballs);
+#     eyeballs = 5;
+#     print(eyeballs);
+
+#     print("theory: ", theory);
+#     print("old: ", old);
+
+#     print("THIS IS VALID============================");
+#     old = eyeballs;
+#     if (old) {
+#         print("old is true!");
+#     } else {
+#         print("old is false!");
+#     }
+
+#     var i : int;
+#     for (i = 5; i; i = i - 1) {
+#         print("i: ", i);
+#     }
+
+#     var tester : int;
+#     tester = 1; 
+#     if (tester == true) {
+#         print("yup tester is true!");
+#     } else {
+#         print("tester is false!");
+#     }
+
+#     print("TAKBIR'S TEST CASES FOR ASSIGNMENTS=================================================================================================");
+
+#     /* Equality and Inequality tests with coercion */
+#     print(0 == false);        /* Expected: true (0 is coerced to false) */
+#     print(1 == true);         /* Expected: true (1 is coerced to true) */
+#     print(42 == true);        /* Expected: true (42 is non-zero, coerced to true) */
+#     print(-1 == true);        /* Expected: true (-1 is non-zero, coerced to true) */
+#     print(0 != true);         /* Expected: true (0 is coerced to false, not equal to true) */
+#     print(1 != false);        /* Expected: true (1 is coerced to true, not equal to false) */
+#     print(0 != false);        /* Expected: false (0 is coerced to false) */
+#     print("==========");
+    
+#     /* Logical AND (&&) and OR (||) with coercion */
+#     print(0 && false);        /* Expected: false (0 is coerced to false, false && false is false) */
+#     print(1 && true);         /* Expected: true (1 is coerced to true, true && true is true) */
+#     print(0 || true);         /* Expected: true (0 is coerced to false, false || true is true) */
+#     print(0 || false);        /* Expected: false (0 is coerced to false, false || false is false) */
+#     print(42 && false);       /* Expected: false (42 is coerced to true, true && false is false) */
+#     print(42 || false);       /* Expected: true (42 is coerced to true, true || false is true) */
+#     print("==========");
+    
+#     /* Nested expressions with coerced booleans */
+#     print((0 || 1) && true);  /* Expected: true ((0 || 1) coerces to true, true && true is true) */
+#     print((0 && 1) || true);  /* Expected: true ((0 && 1) coerces to false, false || true is true) */
+#     print(0 || (0 && true));  /* Expected: false (0 || (false) is false) */
+#     print(1 && (0 || true));  /* Expected: true (1 coerces to true, true && true is true) */
+#     print("==========");
+    
+#     /* Comparison with multiple types */
+#     print((0 == false) && (1 == true));  /* Expected: true (both coerced comparisons are true) */
+#     print((0 != true) || (1 != false));  /* Expected: true (both coerced comparisons are true) */
+#     print((0 && foo()) == false);        /* Expected: true (0 is coerced to false, foo() returns false, (false && false) == false is true) */
+#     print((1 && foo()) != true);         /* Expected: true (1 is coerced to true, foo() returns false, (true && false) != true is true) */
+#     print((1 || foo()) != true);         /* Expected: false (1 is coerced to true, foo() returns false, (true || false) != true is false) */
+#     print(bar());
+#     print(bar() == false); /* should be false */
+#     print("END OF TAKBIR'S TEST CASES FOR ASSIGNMENTS=================================================================================================");
+
+#     print("defaultIntReturner: ", defaultIntReturner());
+#     print("defaultBoolReturner: ", defaultBoolReturner());
+#     print("defaultStringReturner: ", defaultStringReturner());
+
+#     var a : int;
+#     a = 5;
+#     print(testParams(a));
+# }
+# """
+
+new_interpreter = Interpreter(console_output = True, inp = None, trace_output = False)
 new_interpreter.run(test_program)

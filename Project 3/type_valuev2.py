@@ -10,6 +10,16 @@ class Type:
     VOID = "void"
     struct_types = {}  
 
+    def get_struct(self, struct_type):
+        return Type.struct_types[struct_type]
+
+    def add_struct_type(self, struct_type):
+        Type.struct_types[struct_type] = None
+
+    def add_struct(self, struct_type, struct):
+        Type.struct_types[struct_type] = struct
+    
+
 # Represents a value, which has a type and its value
 class Value:
     def __init__(self, type, value=None):

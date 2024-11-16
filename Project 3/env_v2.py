@@ -10,7 +10,6 @@ class EnvironmentManager:
         for env in reversed(cur_func_env):
             if symbol in env:
                 return env[symbol]
-            
 
         return None
 
