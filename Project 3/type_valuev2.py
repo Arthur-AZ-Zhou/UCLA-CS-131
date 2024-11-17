@@ -1,6 +1,5 @@
 from intbase import InterpreterBase
 
-
 # Enumerated type for our different language data types
 class Type:
     INT = "int"
@@ -8,22 +7,21 @@ class Type:
     STRING = "string"
     NIL = "nil"
     VOID = "void"
-    struct_types = {}  
+    struct_types = {} 
 
-    def get_struct(self, struct_type):
-        return Type.struct_types[struct_type]
-
-    def add_struct_type(self, struct_type):
+    def add_struct_type(self, struct_type): #IMPORTANT FOR NON PRIMITIVES
         Type.struct_types[struct_type] = None
 
     def add_struct(self, struct_type, struct):
         Type.struct_types[struct_type] = struct
 
+    def get_struct(self, struct_type):
+        return Type.struct_types[struct_type]
+
     @staticmethod
     def reset_struct_types():
         """Reset all struct type definitions."""
         Type.struct_types.clear()
-    
 
 # Represents a value, which has a type and its value
 class Value:
@@ -31,16 +29,15 @@ class Value:
         self.t = type
         self.v = value
 
-    def value(self):
-        return self.v
-
     def type(self):
         return self.t
+
+    def value(self):
+        return self.v
 
     def cleanup(self):
         if self.type() in Type.struct_types:
             self.v = None  # Reset the value for cleanup
-
 
 def create_value(val):
     if val == InterpreterBase.TRUE_DEF:
