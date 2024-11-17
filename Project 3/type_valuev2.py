@@ -18,6 +18,11 @@ class Type:
 
     def add_struct(self, struct_type, struct):
         Type.struct_types[struct_type] = struct
+
+    @staticmethod
+    def reset_struct_types():
+        """Reset all struct type definitions."""
+        Type.struct_types.clear()
     
 
 # Represents a value, which has a type and its value
@@ -31,6 +36,10 @@ class Value:
 
     def type(self):
         return self.t
+
+    def cleanup(self):
+        if self.type() in Type.struct_types:
+            self.v = None  # Reset the value for cleanup
 
 
 def create_value(val):

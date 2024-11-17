@@ -26,12 +26,17 @@ class Interpreter(InterpreterBase):
         self.__setup_ops()
 
     def run(self, program):
+        Type.reset_struct_types()
+        if self.trace_output:
+            print("REMAINING STRUCT_TYPES??!?!: ", Type.struct_types)
+
         ast = parse_program(program)
         self.process_structs(ast)
         self.__set_up_function_table(ast)
         self.env = EnvironmentManager()
         self.must_return = False
         self.__call_func_aux("main", [])
+        self.env.reset_structs()
 
     #Chatgpt generated
     def process_structs(self, ast):
@@ -122,13 +127,17 @@ class Interpreter(InterpreterBase):
                     expected_return_type = self.env.get("return")
                     if self.trace_output:
                         print("EXPECTED_RETURN_TYPE: ", expected_return_type, " ====================================================")
+                        print("current struct types: ", self.type_manager.struct_types)
+                        print("should this trigger structs?!?!?!: ", return_val.type() == Type.NIL and expected_return_type in self.type_manager.struct_types)
                     if return_val.value() is None:
                         return_val = self.defaults(expected_return_type)
 
                     if return_val.type() != expected_return_type:
                         if return_val.type() == Type.INT and expected_return_type == Type.BOOL:
                             return_val = Value(Type.BOOL, self.int_to_bool_coercion(return_val))
-                        elif return_val.type == Type.NIL and expected_return_type in self.type_manager.struct_types:
+                        elif return_val.type() == Type.NIL and expected_return_type in self.type_manager.struct_types:
+                            if self.trace_output:
+                                print("INFERNO TRIGGER")
                             return_val = Value(expected_return_type, Type.NIL)
                         else: 
                             super().error(ErrorType.TYPE_ERROR, description=f"Returned value's type {return_val.type()} is inconsistent with function's return type {expected_return_type}")
@@ -139,7 +148,7 @@ class Interpreter(InterpreterBase):
         if self.env.is_in_function:
             expected_return_type = self.env.get("return")
             if self.trace_output:
-                print("EXPECTED_RETURN_TYPE: ", expected_return_type, " ====================================================")
+                print("EXPECTED_RETURN_TYPE DEFAULT: ", expected_return_type, " ====================================================")
             return_val = self.defaults(expected_return_type)
         self.env.pop_block()
         return (ExecStatus.CONTINUE, return_val)
@@ -262,25 +271,63 @@ class Interpreter(InterpreterBase):
         if "." in var_name:
             # Use get_variable_including_structs to handle structs
             var_obj = self.get_variable_including_structs(assign_ast)
+            if self.trace_output:
+                print("AFTER WILD GOOSE CHASE: ", var_obj.value())
             # Extract the struct and field names
-            struct_name, field_name = var_name.split(".", 1)
-            struct_obj = self.env.get(struct_name)
+            var_name_parts = var_name.split(".", 1)
+            struct_obj = self.env.get(var_name_parts[0])
 
             if struct_obj is None or struct_obj.type() not in self.type_manager.struct_types:
-                super().error(ErrorType.NAME_ERROR, f"Undefined struct {struct_name}")
+                super().error(ErrorType.NAME_ERROR, f"Undefined struct {var_name_parts[0]}")
             
-            struct_fields = struct_obj.value()
-            if field_name not in struct_fields:
-                super().error(ErrorType.NAME_ERROR, f"Undefined field {field_name} in struct {struct_name}")
+            current_field = struct_obj.value()
+            if self.trace_output:
+                print("STRUCT FIELDS: ", current_field)
+
+            for part in var_name_parts[1:]:  # Skip the last part, which is the field to assign
+                if not isinstance(current_field, dict):
+                    super().error(
+                        ErrorType.FAULT_ERROR,
+                        f"Error dereferencing {current_field} value in {var_name}"
+                    )
+                
+                if part not in current_field:
+                    super().error(
+                        ErrorType.NAME_ERROR,
+                        f"Unknown member {part} in struct {'.'.join(var_name_parts)}"
+                    )
+                
+                current_field = current_field[part].value()  # Move to the next nested struct or value
+                if self.trace_output:
+                    print("CURRENT_FIELD: ", current_field)
+
+            final_field = var_name_parts[-1]
+            if self.trace_output:
+                print("FINAL FIELD: ", final_field)
+                print("isinstance(final_field, dict): ", isinstance(final_field, dict))
+                # print("final_field not in current_field: ", final_field not in current_field)
+
+            # if not isinstance(current_field, dict) and final_field not in current_field:
+            #     super().error(
+            #         ErrorType.NAME_ERROR,
+            #         f"Unknown field {final_field} in struct {'.'.join(var_name_parts)}"
+            #     )
             
             # Ensure type compatibility
-            if struct_fields[field_name].type() != val.type():
-                super().error(
-                    ErrorType.TYPE_ERROR,
-                    f"Type mismatch: cannot assign {val.type()} to {struct_fields[field_name].type()}",
-                )
-            # Update the struct's field value
-            struct_fields[field_name] = val
+            if self.trace_output:
+                print("final_field TYPE: ", final_field)
+                print("VAL TYPE: ", val.type())
+
+            if final_field.type() != val.type():
+                if final_field.type() == Type.BOOL and val.type() == Type.INT:
+                    val = Value(Type.BOOL, self.int_to_bool_coercion(val))
+                elif final_field.type() in self.type_manager.struct_types and val.type() == Type.NIL:
+                    val = Value(final_field.type(), Type.NIL)
+                else:
+                    super().error(
+                        ErrorType.TYPE_ERROR,
+                        f"Type mismatch: cannot assign {val.type()} to {final_field.type()}"
+                    )
         else:
             # Use get_variable_including_structs for regular variable assignment
             var_obj = self.get_variable_including_structs(assign_ast)
@@ -293,11 +340,11 @@ class Interpreter(InterpreterBase):
                 else:
                     super().error(
                         ErrorType.TYPE_ERROR, 
-                        f"Type mismatch: cannot assign {val.type()} to {var_obj.type()}"
+                        f"SECONDAT: Type mismatch: cannot assign {val.type()} to {var_obj.type()}"
                     )
 
             if not self.env.set(var_name, val):
-                super().error(ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment")
+                super().error(ErrorType.NAME_ERROR, f"SECONDAT: Undefined variable {var_name} in assignment")
 
     def int_to_bool_coercion(self, val):
         if self.trace_output:
@@ -369,12 +416,20 @@ class Interpreter(InterpreterBase):
         full_var_name = var_ast.get("name")
         var_name_and_keys = full_var_name.split(".")
         var_name = var_name_and_keys[0]
+
         val = self.env.get(var_name)
+        if self.trace_output:
+            print("VAR NAME: ", var_name)
+            print("VAR KEYS: ", var_name_and_keys[1:])
+            print("VAL OF VAR NAME: ", val.value())
 
         if val == None:
             super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
         
         for key in var_name_and_keys[1:]:
+            if self.trace_output:
+                print("Resolving key:", key)
+
             if val.type() not in self.type_manager.struct_types:
                 super().error(ErrorType.TYPE_ERROR, description=f"Dot used with non-struct in {full_var_name}")
             struct = val.value()
@@ -383,8 +438,39 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.FAULT_ERROR, description=f"Error dereferencing {struct} value in {full_var_name}")
             if key not in struct:
                 super().error(ErrorType.NAME_ERROR, description=f"Unknown member {key} in {full_var_name}")
+
             val = struct[key]
+            if self.trace_output:
+                print(f"Resolved {key}: {val.value()}")
+
         return val
+
+        # full_var_name = var_ast.get("name")
+        # var_name_and_keys = full_var_name.split(".")
+        # var_name = var_name_and_keys[0]
+        # # val: Value = deepcopy(self.env.get(var_name))
+        # val: Value = self.env.get(var_name)
+        # if not val:
+        #     super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
+        # for key in var_name_and_keys[1:]:
+        #     if val.type() not in self.type_manager.struct_types:
+        #         super().error(
+        #             ErrorType.TYPE_ERROR,
+        #             description=f"Dot used with non-struct in {full_var_name}",
+        #         )
+        #     struct = val.value()
+        #     if not isinstance(struct, dict):
+        #         super().error(
+        #             ErrorType.FAULT_ERROR,
+        #             description=f"Error dereferencing {struct} value in {full_var_name}",
+        #         )
+        #     if key not in struct:
+        #         super().error(
+        #             ErrorType.NAME_ERROR,
+        #             description=f"Unknown member {key} in {full_var_name}",
+        #         )
+        #     val = struct[key]
+        # return val
 
     def create_new_struct(self, new_ast):
         struct_type = new_ast.get("var_type")
@@ -407,10 +493,8 @@ class Interpreter(InterpreterBase):
 
         if operator in {"==", "!="}:
             if (left_value_obj.type() in self.type_manager.struct_types or right_value_obj.type() in self.type_manager.struct_types):
-                if operator == "==":
-                    return struct_equality(left_value_obj, right_value_obj)
-                else:
-                    return struct_inequality(left_value_obj, right_value_obj)
+                left_val = left_value_obj.value()
+                right_val = right_value_obj.value()
 
             # # Coerce both operands to BOOL if one of them is BOOL THIS LINE MIGHT BE PROBLEMATIC==0-34998590183920148321-43209-49320931254932-04129-4132-
             if left_value_obj.type() == Type.INT and right_value_obj.type() == Type.BOOL:
@@ -451,7 +535,6 @@ class Interpreter(InterpreterBase):
         return Value(t, f(value_obj.value()))
 
     def __setup_ops(self):
-        global struct_equality
         def struct_equality(x: Value, y: Value):
             if x.type() == y.type() and x.type() in self.type_manager.struct_types:
                 return Value(Type.BOOL, x.value() is y.value())
@@ -462,7 +545,6 @@ class Interpreter(InterpreterBase):
 
             return Value(Type.BOOL, False)
 
-        global struct_inequality
         def struct_inequality(x: Value, y: Value):
             return Value(Type.BOOL, not struct_equality(x, y).value())
 
@@ -621,15 +703,52 @@ class Interpreter(InterpreterBase):
         return (ExecStatus.RETURN, value_obj)
 
 test_program = """
-struct dog {
-  name: string;
-  vaccinated: bool;  
+struct node {
+    value: int;
+    next: node;
 }
 
 func main() : void {
-  var d: dog;    /* d is an object reference whose value is nil */
+    var n : node;
+    var p : node;
+    var q : node; 
+    print(n);
+    n = new node;
+    p = new node;
+    q = new node;
+    n.value = 9;
+    print("DONE ASSIGNING 9 ===================================================");
+    n.next = p;
+    print(n.value);
+    p.value = 9;
+    print(p.value);
+    print(p.next);
+    print(n.next.value);
+    print("BEGIN CANCER LINE=====================================================");
+    n.next.next = q;
+    print("DONE WITH CANCER LINE==================================================");
+    n.next.next.value = 10;
+    print(p.next.value);
+    print(q.value + 1);
+}
+"""
 
-  print (d);  /* prints nil, because d was initialized to nil */
+test_program1 = """
+struct dog {
+    name: string;
+    vaccinated: bool;  
+}
+
+func main() : void {
+    var d: dog;
+    d = steal_dog(new dog, "Spots");
+    print(d.name);
+
+}
+
+func steal_dog(d : dog, name: string) : dog {
+    d.name = name;
+    return d;
 }
 """
 
@@ -752,3 +871,5 @@ func main() : void {
 
 new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
 new_interpreter.run(test_program)
+print("BETWEEN WORLDS=======================================================================================")
+new_interpreter.run(test_program1)
