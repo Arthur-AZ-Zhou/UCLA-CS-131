@@ -1,4 +1,5 @@
 from intbase import InterpreterBase
+from Lazy import Lazy
 
 
 # Enumerated type for our different language data types
@@ -38,6 +39,9 @@ def create_value(val):
 
 
 def get_printable(val):
+    if isinstance(val, Lazy):
+        val = val.get()
+
     if val.type() == Type.INT:
         return str(val.value())
     if val.type() == Type.STRING:

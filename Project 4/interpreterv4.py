@@ -7,12 +7,12 @@ from brewparse import parse_program
 from env_v4 import EnvironmentManager
 from intbase import InterpreterBase, ErrorType
 from type_valuev4 import Type, Value, create_value, get_printable
+from Lazy import Lazy
 
 
 class ExecStatus(Enum):
     CONTINUE = 1
     RETURN = 2
-
 
 # Main interpreter class
 class Interpreter(InterpreterBase):
@@ -109,9 +109,9 @@ class Interpreter(InterpreterBase):
         # first evaluate all of the actual parameters and associate them with the formal parameter names
         args = {}
         for formal_ast, actual_ast in zip(formal_args, actual_args):
-            result = copy.copy(self.__eval_expr(actual_ast))
+            # result = copy.copy(self.__eval_expr(actual_ast))
             arg_name = formal_ast.get("name")
-            args[arg_name] = result
+            args[arg_name] = Lazy(lambda: self.__eval_expr(actual_ast).get())
 
         # then create the new activation record 
         self.env.push_func()
@@ -125,7 +125,7 @@ class Interpreter(InterpreterBase):
     def __call_print(self, args):
         output = ""
         for arg in args:
-            result = self.__eval_expr(arg)  # result is a Value object
+            result = self.__eval_expr(arg).get()  # result is a Value object
             output = output + get_printable(result)
         super().output(output)
         return Interpreter.NIL_VALUE
@@ -146,7 +146,7 @@ class Interpreter(InterpreterBase):
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
-        value_obj = self.__eval_expr(assign_ast.get("expression"))
+        value_obj = Lazy(lambda: self.__eval_expr(assign_ast.get("expression")).get())
         if not self.env.set(var_name, value_obj):
             super().error(
                 ErrorType.NAME_ERROR, f"Undefined variable {var_name} in assignment"
@@ -161,27 +161,27 @@ class Interpreter(InterpreterBase):
 
     def __eval_expr(self, expr_ast):
         if expr_ast.elem_type == InterpreterBase.NIL_NODE:
-            return Interpreter.NIL_VALUE
+            return Lazy(lambda: Interpreter.NIL_VALUE)
         if expr_ast.elem_type == InterpreterBase.INT_NODE:
-            return Value(Type.INT, expr_ast.get("val"))
+            return Lazy(lambda: Value(Type.INT, expr_ast.get("val")))
         if expr_ast.elem_type == InterpreterBase.STRING_NODE:
-            return Value(Type.STRING, expr_ast.get("val"))
+            return Lazy(lambda: Value(Type.STRING, expr_ast.get("val")))
         if expr_ast.elem_type == InterpreterBase.BOOL_NODE:
-            return Value(Type.BOOL, expr_ast.get("val"))
+            return Lazy(lambda: Value(Type.BOOL, expr_ast.get("val")))
         if expr_ast.elem_type == InterpreterBase.VAR_NODE:
             var_name = expr_ast.get("name")
             val = self.env.get(var_name)
             if val is None:
                 super().error(ErrorType.NAME_ERROR, f"Variable {var_name} not found")
-            return val
+            return Lazy(lambda: val.get())
         if expr_ast.elem_type == InterpreterBase.FCALL_NODE:
-            return self.__call_func(expr_ast)
+            return Lazy(lambda: self.__call_func(expr_ast))
         if expr_ast.elem_type in Interpreter.BIN_OPS:
-            return self.__eval_op(expr_ast)
+            return Lazy(lambda: self.__eval_op(expr_ast))
         if expr_ast.elem_type == Interpreter.NEG_NODE:
-            return self.__eval_unary(expr_ast, Type.INT, lambda x: -1 * x)
+            return Lazy(lambda: self.__eval_unary(expr_ast, Type.INT, lambda x: -1 * x))
         if expr_ast.elem_type == Interpreter.NOT_NODE:
-            return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
+            return Lazy(lambda: self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x))
 
     def __eval_op(self, arith_ast):
         left_value_obj = self.__eval_expr(arith_ast.get("op1"))
@@ -491,5 +491,5 @@ func main() {
 }
 """
 
-new_interpreter = Interpreter(console_output = True, inp = None, trace_output = False)
+new_interpreter = Interpreter(console_output = True, inp = None, trace_output = True)
 new_interpreter.run(test_program)
