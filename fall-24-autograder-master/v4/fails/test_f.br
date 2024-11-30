@@ -1,0 +1,17 @@
+func main() {
+	try {
+	  var x;
+	  x = 10 + "a";
+	  raise x;
+	}
+	catch "a" {
+	  print("a");
+	}
+	print("f");
+}
+/*
+*OUT*
+ErrorType.TYPE_ERROR
+*OUT*
+*/
+

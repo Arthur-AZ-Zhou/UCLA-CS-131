@@ -1,0 +1,28 @@
+func f() {
+    raise "error";
+    print("f");
+    return true;
+}
+
+func g() {
+    print("g");
+    return false;
+}
+
+func main() {
+    var x;
+    x = f() && g();
+
+    try {
+        print(x);
+    }
+    catch "error" {
+        print("e");
+    }
+}
+
+/*
+*OUT*
+e
+*OUT*
+*/
