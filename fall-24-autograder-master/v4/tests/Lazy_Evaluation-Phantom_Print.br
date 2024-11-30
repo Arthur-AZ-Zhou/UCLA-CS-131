@@ -1,9 +1,0 @@
-func main() {
-  var x;
-  x = print(x) + "asd";
-}
-
-/*
-*OUT*
-*OUT*
-*/
