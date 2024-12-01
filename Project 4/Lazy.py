@@ -1,3 +1,6 @@
+import copy
+from enum import Enum
+
 class Lazy:
     def __init__(self, equation_func):
         self.equation_func = equation_func
@@ -10,3 +13,5 @@ class Lazy:
             self.solved = True
         return self.actual_val
     
+    def copy(self):
+        return Lazy(self.equation_func)

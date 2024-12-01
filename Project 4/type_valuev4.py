@@ -8,7 +8,6 @@ class Type:
     STRING = "string"
     NIL = "nil"
 
-
 # Represents a value, which has a type and its value
 class Value:
     def __init__(self, type, value=None):
@@ -16,7 +15,7 @@ class Value:
         self.v = value
 
     def __eq__(self, other):
-        return isinstance(other, Value) and self.t == other.t and self.v == other.v
+        return self.t == other.t and self.v == other.v and isinstance(other, Value) 
 
     def value(self):
         return self.v
