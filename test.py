@@ -23,7 +23,44 @@ main()
 
 
 
+def _generator(self):
+        for head in self.array:
+            current = head
+            while current:
+                yield current.value
+                current = current.next
 
+ht.iter = lambda: HashTableIterator(ht)
+for item in ht:
+    print(item)
+
+class HashTableIterator:
+def __init__(self, hash_table):
+    self.array = hash_table.array
+    self.bucket_index = 0
+    self.current = None
+
+def __iter__(self):
+    return self
+
+def __next__(self):
+    # Find the next node in the hash table
+    while self.current is None and self.bucket_index < len(self.array):
+        self.current = self.array[self.bucket_index]
+        self.bucket_index += 1
+    if self.current is None:
+        raise StopIteration
+    value = self.current.value
+    self.current = self.current.next
+    return value
+
+iterator = iter(ht) 
+while True:
+    try:
+        item = next(iterator) 
+        print(item)
+    except StopIteration:
+        break
 
 # class Event:
 #     def __init__(self, start_time, end_time):
